@@ -952,15 +952,16 @@ pub fn run_frame(&amp;mut self) {
         <li><b>985 000</b><span>lignes de Rust</span></li>
         <li><b>41 Mo</b><span>de source généré</span></li>
         <li><b>0,8 s</b><span>de génération</span></li>
-        <li class="is-pending"><b id="compile-time" data-pending>— min</b><span>pour compiler la crate</span><span class="figures__tag">mesure en cours</span></li>
+        <li><b id="compile-time">10 min</b><span>build release, processeur 4 cœurs</span></li>
       </ul>
 
-      <p>Générer est instantané ; c’est la compilation qui présente l’addition. Quel que soit le chiffre final, on la paie <strong>une fois par jeu</strong>, pas à chaque image, et il existe des leviers connus pour la contenir — la crate générée en actionne déjà plusieurs :</p>
+      <p>Générer est instantané ; c’est la compilation qui présente l’addition — une dizaine de minutes sur une modeste machine à 4 cœurs, payée <strong>une fois par jeu</strong> et non à chaque image. Le plus instructif a été de mesurer <em>où</em> part ce temps : le front-end de rustc (vérification des types et des emprunts) prend quelques secondes ; <strong>LLVM prend le reste</strong>, et son coût croît plus vite que le code. Ce sont les longues fonctions pleines de lectures et d’écritures mémoire qui coûtent : les mêmes 30 000 instructions compilent en <strong>146 s</strong> sous forme de longues routines et en <strong>50 s</strong> sous forme de courtes, alors que le niveau d’optimisation ne change presque rien (135 s en <code>opt-level = 1</code>). Le générateur façonne donc sa sortie pour le compilateur :</p>
       <ul class="roadmap">
         <li><span>Beaucoup de petits fichiers<small>Les fonctions sont réparties dans des modules <code>part_NNN.rs</code> : rustc ne voit jamais un fichier géant.</small></span><span class="chip chip--live">en place</span></li>
         <li><span>Builds de dev rapides, dépendances optimisées<small><code>opt-level = 1</code> pour le code du jeu, <code>opt-level = 3</code> pour les puces de gase : on peut tester en jouant sans build release complet.</small></span><span class="chip chip--live">en place</span></li>
         <li><span>Génération de code en parallèle<small><code>codegen-units = 16</code> en release laisse LLVM travailler sur plusieurs morceaux à la fois.</small></span><span class="chip chip--live">en place</span></li>
-        <li><span>Des fonctions plus petites<small>Découper les très grosses routines 68000 en plusieurs fonctions Rust, si un seul <code>match</code> devient le goulet d’étranglement.</small></span><span class="chip chip--plan">si besoin</span></li>
+        <li><span>Blocs courts, fonctions découpées<small>Les suites d’instructions sans saut sont coupées toutes les 24 instructions, et les grosses routines 68000 deviennent plusieurs fonctions <code>#[inline(never)]</code> d’environ 48 instructions, qui rendent le <code>pc</code> suivant à un petit <code>match</code> (146&nbsp;s → 107&nbsp;s sur le test de 30 000 instructions). <code>--chunk</code> et <code>--max-block</code> permettent d’expérimenter.</small></span><span class="chip chip--live">en place</span></li>
+        <li><span>Inlining sobre<small>Seuls le chemin rapide RAM/ROM des accès mémoire et les calculs de flags fréquents sont inlinés ; les entrées-sorties, le BCD, les divisions et les rotations via X restent hors ligne, pour que chaque instruction produise peu d’IR.</small></span><span class="chip chip--live">en place</span></li>
       </ul>
       <figure class="code">
         <div class="code__bar"><span class="file">Cargo.toml généré</span><span class="lang">TOML</span></div>
@@ -972,7 +973,8 @@ opt-level = 1
 opt-level = 3
 
 [profile.release]
-codegen-units = 16</code></pre>
+codegen-units = 16
+lto = "off"</code></pre>
       </figure>
 
       <h3>Deux implémentations, une leçon</h3>

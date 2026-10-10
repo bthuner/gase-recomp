@@ -952,15 +952,16 @@ pub fn run_frame(&amp;mut self) {
         <li><b>985,000</b><span>lines of Rust</span></li>
         <li><b>41 MB</b><span>of generated source</span></li>
         <li><b>0.8 s</b><span>to generate</span></li>
-        <li class="is-pending"><b id="compile-time" data-pending>— min</b><span>to build the crate</span><span class="figures__tag">being measured</span></li>
+        <li><b id="compile-time">10 min</b><span>release build, 4-core CPU</span></li>
       </ul>
 
-      <p>Generating is instant; compiling is the bill. Whatever the final figure, it is paid <strong>once per game</strong> rather than every frame, and there are known levers to keep it reasonable — the generated crate already pulls several of them:</p>
+      <p>Generating is instant; compiling is the bill — about ten minutes on a modest 4-core machine, paid <strong>once per game</strong> rather than every frame. Measuring <em>where</em> it goes was the instructive part: rustc’s own front end (type and borrow checking) takes a few seconds; <strong>LLVM takes the rest</strong>, and its cost grows faster than the code. Long functions full of loads and stores are what hurt: the same 30,000 instructions built in <strong>146 s</strong> as long routines and in <strong>50 s</strong> as short ones, while the optimisation level barely mattered (135 s at <code>opt-level = 1</code>). So the generator now shapes its output for the compiler:</p>
       <ul class="roadmap">
         <li><span>Many small files<small>Functions are spread over <code>part_NNN.rs</code> modules, so rustc never sees one giant file.</small></span><span class="chip chip--live">in place</span></li>
         <li><span>Fast dev builds, fast dependencies<small><code>opt-level = 1</code> for the game code, <code>opt-level = 3</code> for gase's chips: play-testable without a full release build.</small></span><span class="chip chip--live">in place</span></li>
         <li><span>Parallel code generation<small><code>codegen-units = 16</code> in release lets LLVM work on many parts at once.</small></span><span class="chip chip--live">in place</span></li>
-        <li><span>Smaller functions<small>Split very large 68000 routines across several Rust functions if a single <code>match</code> becomes the bottleneck.</small></span><span class="chip chip--plan">if needed</span></li>
+        <li><span>Short blocks, chunked functions<small>Straight-line runs are cut every 24 instructions, and big 68000 routines become several <code>#[inline(never)]</code> chunk functions of about 48 instructions that hand the next <code>pc</code> back to a small <code>match</code> (146&nbsp;s → 107&nbsp;s on the 30k test). <code>--chunk</code> and <code>--max-block</code> let you experiment.</small></span><span class="chip chip--live">in place</span></li>
+        <li><span>Lean inlining<small>Only the work-RAM/ROM fast path of a memory access and the frequent flag helpers are inlined; I/O paths, BCD, divisions and rotates through X stay out of line, keeping each instruction’s IR small.</small></span><span class="chip chip--live">in place</span></li>
       </ul>
       <figure class="code">
         <div class="code__bar"><span class="file">generated Cargo.toml</span><span class="lang">TOML</span></div>
@@ -972,7 +973,8 @@ opt-level = 1
 opt-level = 3
 
 [profile.release]
-codegen-units = 16</code></pre>
+codegen-units = 16
+lto = "off"</code></pre>
       </figure>
 
       <h3>Two implementations, one lesson</h3>
