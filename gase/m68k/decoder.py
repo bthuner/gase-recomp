@@ -414,11 +414,11 @@ def _line5(ins: Instruction, op: int, r: _Reader) -> None:
 def _line6(ins: Instruction, op: int, r: _Reader) -> None:
     cond = (op >> 8) & 15
     base = r.pos
+    # A zero byte means "a 16-bit displacement follows". ($FF announces a
+    # 32-bit one only on the 68020+: on a 68000 it is simply -1.)
     disp = op & 0xFF
     if disp == 0:
         disp = sext16(r.word())
-    elif disp == 0xFF:
-        raise DecodeError("32-bit branch displacement is 68020+")
     else:
         disp = sext8(disp)
     ins.target = (base + disp) & 0xFFFFFFFF

@@ -27,7 +27,7 @@ def test_known_encodings(words, text, length):
     assert ins.length == length
 
 
-@pytest.mark.parametrize("words", [(0x4AFB,), (0x60FF,), (0xE8C0,), (0x0E00,)])
+@pytest.mark.parametrize("words", [(0x4AFB,), (0xE8C0,), (0x0E00,)])
 def test_invalid_encodings_are_rejected(words):
     with pytest.raises(DecodeError):
         dis(*words, 0, 0, 0)
@@ -42,6 +42,8 @@ def test_every_opcode_matches_musashi():
     for op in range(0x10000):
         if op >> 12 in (0xA, 0xF):               # line A/F: we decode them as traps
             continue
+        if op >> 12 == 6 and op & 0xFF == 0xFF:  # Bcc.s with displacement $FF: -1 on a
+            continue                             # 68000; Musashi's disassembler says 68020
         ext = [rng.randrange(0x10000) & 0xF8FF for _ in range(4)]   # 68000 brief ext words
         words = [op] + ext
         for k, w in enumerate(words):
