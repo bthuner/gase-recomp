@@ -7,8 +7,27 @@ on:
     branches: [main, develop]
 
 jobs:
+  rust:
+    name: Rust edition (fmt, clippy, tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install SDL2
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --features gase-recomp-runtime/sdl -- -D warnings
+      - name: Decoder, differential and end-to-end tests
+        run: cargo test --workspace
+      - name: More differential seeds
+        run: |
+          for seed in 2 3 4; do GASE_DIFFTEST_SEED=$seed cargo test -p gase-recomp-difftest; done
+
   test:
-    name: Tests (Python + C, Linux)
+    name: C edition (Python + C, Linux)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

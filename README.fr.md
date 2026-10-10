@@ -2,9 +2,16 @@
 
 **Une ROM en entrée, un jeu natif en sortie.** gase-recomp est un
 recompilateur statique *pédagogique* pour les jeux Sega Mega Drive /
-Genesis. Apportez une ROM qui vous appartient, choisissez une plateforme
-(ordinateur, Android, iOS) : le code machine 68000 du jeu est traduit en C
-portable, compilé nativement pour cette plateforme.
+Genesis. Apportez une ROM qui vous appartient : le code machine 68000 du jeu
+est traduit en Rust, qui tourne sur les puces de
+[**gase**](https://github.com/bthuner/gase), un émulateur Mega Drive en Rust.
+Seul le 68000 est remplacé par du code recompilé ; VDP, YM2612, PSG et Z80
+sont ceux de gase.
+
+> **Deux éditions cohabitent.** L'**édition Rust** (`crates/`) est la voie
+> principale. La première **édition C + Python** (`gase/`, `runtime/`,
+> `tests/`) reste en référence pédagogique : même pipeline, autres
+> compromis. Le making-of raconte pourquoi nous avons changé.
 
 L'objectif est autant d'**apprendre à construire un projet de décompilation /
 recompilation** que de faire tourner des jeux. Chaque module est court,
@@ -23,7 +30,29 @@ chapitre par chapitre :
                              runtime/ (C) : CPU, carte mémoire, VDP, PSG, manettes
 ```
 
-## Démarrage rapide
+## Démarrage rapide (édition Rust)
+
+Prérequis : Rust 1.85+ ; pour une fenêtre, SDL2 (`apt install libsdl2-dev`,
+`brew install sdl2`).
+
+```sh
+cargo run --release -p gase-recomp -- info   jeu.md
+cargo run --release -p gase-recomp -- recomp jeu.md -o build/jeu
+cd build/jeu && cargo run --release            # fenêtre (SDL2)
+cargo run --release -- --headless --frames 600 --ppm capture.ppm
+```
+
+Le dossier généré est un crate Cargo ordinaire : `src/recomp/` contient le
+code du jeu en Rust, `rom.bin` votre ROM. Le code que l'analyse n'a pas
+trouvé tourne sur l'interpréteur 68000 de gase : le jeu continue, et
+l'adresse est notée dans `gase_missing.txt` ; relancez `recomp` et elle
+devient du Rust à son tour.
+
+```sh
+cargo test --workspace     # décodeur, tests différentiels, bout en bout
+```
+
+## Démarrage rapide (édition C, référence pédagogique)
 
 Prérequis : Python 3.10+, un compilateur C, CMake, SDL2 (`apt install libsdl2-dev`,
 `brew install sdl2`, vcpkg sous Windows).

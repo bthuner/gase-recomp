@@ -1,9 +1,16 @@
 # gase-recomp
 
 **ROM in, native game out.** gase-recomp is a *pedagogic* static recompiler for
-Sega Genesis / Mega Drive games. Bring a ROM you own, choose a platform
-(desktop, Android, iOS), and it translates the game's 68000 machine code
-into portable C that builds natively for that platform.
+Sega Genesis / Mega Drive games. Bring a ROM you own, and it translates the
+game's 68000 machine code into Rust that runs on the chips of
+[**gase**](https://github.com/bthuner/gase), a Rust Mega Drive emulator: only
+the 68000 is replaced by recompiled code, the VDP, YM2612, PSG and Z80 are
+gase's.
+
+> **Two editions live here.** The **Rust edition** (`crates/`) is the main
+> path. The first **C + Python edition** (`gase/`, `runtime/`, `tests/`) stays
+> as a teaching reference: same pipeline, different trade-offs. The
+> making-of tells why we switched.
 
 The goal is just as much to **teach how a decomp/recomp project is built**
 as to run games: every module is small, commented, and maps to one step of
@@ -21,7 +28,38 @@ the pipeline. The making-of explains it chapter by chapter:
                                     runtime/ (C): CPU glue, memory map, VDP, PSG, pads
 ```
 
-## Quick start
+## Quick start (Rust edition)
+
+Requirements: Rust 1.85+; for a desktop window, the SDL2 development package
+(`apt install libsdl2-dev`, `brew install sdl2`).
+
+```sh
+cargo run --release -p gase-recomp -- info   game.md
+cargo run --release -p gase-recomp -- disasm game.md | less
+cargo run --release -p gase-recomp -- recomp game.md -o build/game
+cd build/game && cargo run --release           # desktop window (SDL2)
+cargo run --release -- --headless --frames 600 --ppm shot.ppm
+```
+
+The generated folder is an ordinary Cargo crate: `src/recomp/` is the
+game's code in Rust, `rom.bin` your ROM (graphics, sound and data are still
+read from it). Code the analysis missed runs on gase's 68000 interpreter, so
+the game keeps playing, and its address goes to `gase_missing.txt`; run
+`recomp` again and it becomes Rust too.
+
+| crate | what you learn there |
+|-------|----------------------|
+| [`crates/recomp`](crates/recomp/src/lib.rs) | ROM, 68000 decoder, analysis, Rust code generation (no `goto`: blocks as a state machine) |
+| [`crates/runtime`](crates/runtime/src/lib.rs) | the CPU context, flags, calls and poll points, an inverted scheduler on gase's chips, the interpreter fallback |
+| [`crates/difftest`](crates/difftest/src/lib.rs) | differential testing against gase's hardware-validated 68000 interpreter |
+| [`crates/e2e`](crates/e2e/src/lib.rs) | a hand-assembled ROM, recompiled and played, before and after the feedback loop |
+
+```sh
+cargo test --workspace                       # decoder, differential and end-to-end tests
+GASE_DIFFTEST_SEED=7 cargo test -p gase-recomp-difftest
+```
+
+## Quick start (C edition, teaching reference)
 
 Requirements: Python 3.10+, a C compiler, CMake, SDL2 (`apt install libsdl2-dev`,
 `brew install sdl2`, vcpkg on Windows).
