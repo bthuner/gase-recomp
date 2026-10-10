@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  rust:
+    name: Rust edition (fmt, clippy, tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install SDL2
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --features gase-recomp-runtime/sdl -- -D warnings
+      - name: Decoder, differential and end-to-end tests
+        run: cargo test --workspace
+      - name: More differential seeds
+        run: |
+          for seed in 2 3 4; do GASE_DIFFTEST_SEED=$seed cargo test -p gase-recomp-difftest; done
+
+  test:
+    name: C edition (Python + C, Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-dev ninja-build
+          pip install pytest machine68k
+      - name: Unit, differential and end-to-end tests
+        run: python -m pytest -v
+      - name: Build the desktop (SDL2) app from the test ROM
+        run: |
+          python tests/roms/make_test_rom.py test.bin
+          python -m gase recomp test.bin --platform desktop -o out/desktop
+          cmake -S out/desktop -B out/desktop/build -G Ninja -DCMAKE_C_FLAGS="-Wall -Wextra -Wno-unused-label -Werror"
+          cmake --build out/desktop/build
+
+  desktop:
+    name: Desktop build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Generate a project from the test ROM
+        run: |
+          python tests/roms/make_test_rom.py test.bin
+          python -m gase recomp test.bin --platform desktop -o out/desktop
+      - name: Headless build and run
+        shell: bash
+        run: |
+          echo 0x0002EE > out/desktop/gase_missing.txt
+          python -m gase recomp test.bin --platform desktop -o out/desktop
+          cmake -S out/desktop -B out/headless -DGASE_HEADLESS=ON
+          cmake --build out/headless --config Release
+          exe=$(find out/headless -type f \( -name game_headless -o -name game_headless.exe \) | head -1)
+          "$exe" out/desktop/assets/rom.bin 60 frame.ppm

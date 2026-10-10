@@ -1,0 +1,22 @@
+[package]
+name = "gase-recomp-runtime"
+description = "Runtime for statically recompiled Mega Drive games, built on the gase emulator's chips"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+gase-core.workspace = true
+gase-m68k.workspace = true
+gase-z80.workspace = true
+gase-vdp.workspace = true
+gase-sound.workspace = true
+sdl2 = { version = "0.37", optional = true }
+
+[features]
+# A desktop window (needs the SDL2 development package, like gase).
+sdl = ["dep:sdl2"]
+
+[lints]
+workspace = true
