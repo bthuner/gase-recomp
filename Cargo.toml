@@ -17,8 +17,8 @@ rust-version = "1.85"
 # The emulator we build on: every chip but the 68000 is reused as-is, and its
 # frontends run recompiled games. Keep this revision in sync with GASE_REV in
 # crates/recomp/src/project.rs (a test checks it).
-gase-core  = { git = "https://github.com/bthuner/gase", rev = "95bee66126a9acc23e62e7f9cffdfca3549b3f7f" }
-gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "95bee66126a9acc23e62e7f9cffdfca3549b3f7f" }
+gase-core  = { git = "https://github.com/bthuner/gase", rev = "79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49" }
+gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49" }
 gase-recomp-runtime = { path = "crates/runtime" }
 gase-recomp = { path = "crates/recomp" }
 
