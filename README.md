@@ -128,6 +128,10 @@ that the feedback loop finds the indirect call, then checks RAM and pixels.
 
 ## Status and roadmap
 
+First real game: **hashbug**, a 2.2 MB homebrew, recompiled in one pass and
+played inside gase with graphics identical to the emulator (release build
+about 5 minutes).
+
 Works today: full 68000 instruction set (decoder checked against Musashi on
 all 65,536 opcodes, semantics checked by differential tests), VDP (planes,
 window, sprites, scrolling, DMA), PSG, 3-button pads, VBlank/HBlank

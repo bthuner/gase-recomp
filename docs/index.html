@@ -962,7 +962,7 @@ pub fn catch_up(&amp;mut self, cycles: u64) -&gt; u64 {
         <li><b id="compile-time">10 min</b><span>release build, 4-core CPU</span></li>
       </ul>
 
-      <p>Generating is instant; compiling is the bill — about ten minutes on a modest 4-core machine, paid <strong>once per game</strong> rather than every frame. Measuring <em>where</em> it goes was the instructive part: rustc’s own front end (type and borrow checking) takes a few seconds; <strong>LLVM takes the rest</strong>, and its cost grows faster than the code. Long functions full of loads and stores are what hurt: the same 30,000 instructions built in <strong>146 s</strong> as long routines and in <strong>50 s</strong> as short ones, while the optimisation level barely mattered (135 s at <code>opt-level = 1</code>). So the generator now shapes its output for the compiler:</p>
+      <p>Generating is instant; compiling is the bill — about ten minutes on a modest 4-core machine for this deliberately heavy random code (a real 2.2&nbsp;MB game later took about five, see <a href="#first-real-game">below</a>), paid <strong>once per game</strong> rather than every frame. Measuring <em>where</em> it goes was the instructive part: rustc’s own front end (type and borrow checking) takes a few seconds; <strong>LLVM takes the rest</strong>, and its cost grows faster than the code. Long functions full of loads and stores are what hurt: the same 30,000 instructions built in <strong>146 s</strong> as long routines and in <strong>50 s</strong> as short ones, while the optimisation level barely mattered (135 s at <code>opt-level = 1</code>). So the generator now shapes its output for the compiler:</p>
       <ul class="roadmap">
         <li><span>Many small files<small>Functions are spread over <code>part_NNN.rs</code> modules, so rustc never sees one giant file.</small></span><span class="chip chip--live">in place</span></li>
         <li><span>Fast dev builds, fast dependencies<small><code>opt-level = 1</code> for the game code, <code>opt-level = 3</code> for gase's chips: play-testable without a full release build.</small></span><span class="chip chip--live">in place</span></li>
@@ -1201,6 +1201,17 @@ $ cargo run --release -- --headless --bench
         </div>
         <figcaption class="caption">A real screenshot: gase's pause menu over the recompiled test ROM. Save states, rewind and fast-forward are gase's — the game binary never had to implement them.</figcaption>
       </figure>
+
+      <h3 id="first-real-game">First real game: hashbug</h3>
+      <p>The test ROM proves the mechanics; a real game proves the point. The first one was <strong>hashbug</strong>, a Mega Drive homebrew of <strong>2.2&nbsp;MB</strong>, recompiled by the author on their own machine:</p>
+      <ul class="figures full" aria-label="First real game">
+        <li><b>2.2 MB</b><span>homebrew ROM</span></li>
+        <li><b>1 pass</b><span>of <code>gase-recomp recomp</code></span></li>
+        <li><b>≈ 5 min</b><span>release build</span></li>
+        <li><b>= gase</b><span>graphics, same as the emulator</span></li>
+      </ul>
+      <p>One recompilation was enough to play it, and the picture matched the same ROM running on gase's interpreter. The release build took a good five minutes — half the ten minutes of the synthetic benchmark above, which is no surprise: real code is mostly moves, compares and branches, far lighter than random instructions full of BCD, divisions and rotates through X.</p>
+      <p class="caption">Generic lesson: benchmark with a pessimistic synthetic workload to decide whether an approach can work at all, then let the first real program tell you how it actually behaves.</p>
 
       <h3>Two implementations, one lesson</h3>
       <p>The C + Python version stays in the repository (<code>gase/</code>, <code>runtime/</code>, <code>tests/</code>) as the <strong>first draft</strong>: shorter, closer to the classic recompilers, and still the clearest way into chapters 03 to 09. The Rust edition is where the project goes. Reading both side by side is the point: the pipeline — loader, decoder, analysis, codegen, runtime, feedback loop, differential tests — did not change at all. Only the host language and the shoulders it stands on did.</p>
