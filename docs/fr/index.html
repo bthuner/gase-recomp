@@ -111,14 +111,14 @@
           <svg class="step__icon" viewBox="0 0 56 56" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 10h30v20H4z"/><path d="M12 38h14M19 30v8"/><path d="M38 18h14v32H38z"/><path d="M43 45h4"/></svg>
           <span class="step__n">ÉTAPE 02</span>
           <h3>Choisissez la plateforme</h3>
-          <p>La crate générée tourne aujourd’hui dans une fenêtre sur ordinateur, ou sans écran ; les mobiles et le navigateur suivront, via les frontends de gase.</p>
+          <p>Le jeu généré tourne dans les frontends de gase eux-mêmes : une fenêtre sous Linux, macOS ou Windows, ou sans écran. Les mobiles et le navigateur suivront.</p>
           <ul class="chips" aria-label="Plateformes"><li class="chip chip--live">Ordinateur</li><li class="chip chip--live">Sans écran</li><li class="chip chip--plan">Android · iOS · Web ensuite</li></ul>
         </li>
         <li class="step">
           <svg class="step__icon" viewBox="0 0 56 56" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 14h28v28H14z"/><path d="M20 20h16v16H20z"/><path d="M20 6v8m8-8v8m8-8v8M20 42v8m8-8v8m8-8v8M6 20h8m-8 8h8m-8 8h8M42 20h8m-8 8h8m-8 8h8"/></svg>
           <span class="step__n">ÉTAPE 03</span>
           <h3>Recompilez</h3>
-          <p><code>gase-recomp</code> désassemble, analyse et écrit une crate Rust. <code>cargo run --release</code> fait le reste.</p>
+          <p><code>gase-recomp</code> désassemble, analyse et écrit une crate Rust. <code>cargo run --release</code> construit un gase qui connaît votre jeu.</p>
         </li>
       </ol>
 
@@ -406,8 +406,9 @@
         <pre tabindex="0"><code data-lang="sh">$ gase-recomp recomp test.bin -o build/game -p headless
 [2/4] analysis  4 functions, 64 instructions
 $ cd build/game &amp;&amp; cargo run --release -- --headless --frames 120
-[gase-recomp] 120 frames in 0.045 s (2646 fps), 15360700 cycles
-[gase-recomp] interpreted (not recompiled) entry points: {0002EE}
+GASE TEST ROM [GM 00000000-00] region Americas, 1 KiB ROM, checksum ok, 68000: "GASE TEST ROM" recompiled by gase-recomp
+$ cat gase_missing.txt
+0x0002EE
 $ cd ../.. &amp;&amp; gase-recomp recomp test.bin -o build/game -p headless
 [1/4] using addresses discovered at run time: build/game/gase_missing.txt
 [2/4] analysis  5 functions, 70 instructions</code></pre>
@@ -572,8 +573,9 @@ L_000304:
       <ul class="roadmap">
         <li><span>Recompilateur 68000 sur les puces de gase<small>VDP, YM2612 + PSG, Z80, manettes 6 boutons, mappers de cartouche : tout vient de gase, tout est branché. La ROM de test tourne de bout en bout.</small></span><span class="chip chip--live">fonctionne</span></li>
         <li><span>Repli sur un interpréteur<small>Le code que l’analyse a manqué, ou copié en RAM, tourne sur l’interpréteur 68000 de gase au lieu d’arrêter le jeu.</small></span><span class="chip chip--live">fonctionne</span></li>
-        <li><span>Sauvegardes et états sur disque<small>La SRAM / EEPROM de la cartouche est émulée par gase ; l’écrire sur disque revient aux frontends.</small></span><span class="chip chip--plan">prévu</span></li>
-        <li><span>Android, iOS, Web<small>Via les frontends existants de gase, maintenant qu’un jeu recompilé avance image par image.</small></span><span class="chip chip--wip">ensuite</span></li>
+        <li><span>Dans les frontends de gase<small>Ordinateur (Linux, macOS, Windows) et sans écran : le programme généré, c’est gase, avec un processeur de plus, enregistré pour votre ROM.</small></span><span class="chip chip--live">fonctionne</span></li>
+        <li><span>Sauvegardes, états, rembobinage<small>La SRAM / EEPROM de la cartouche, les états de sauvegarde avec aperçu et le rembobinage sont ceux de gase, et marchent tels quels sur le jeu recompilé.</small></span><span class="chip chip--live">fonctionne</span></li>
+        <li><span>Android, iOS, Web<small>Ils font déjà tourner la même coquille de gase ; leurs points d’entrée doivent laisser un jeu enregistrer son code avant le démarrage de la coquille — un petit chantier côté gase.</small></span><span class="chip chip--wip">ensuite</span></li>
       </ul>
     </div>
   </div>
@@ -591,26 +593,26 @@ L_000304:
     </header>
     <div class="chapter__body">
       <p class="lead">Un jeu recompilé ne devrait pas se soucier de l’endroit où il tourne. Tout ce qui dépend de la plateforme vit dans une fine coquille : une fenêtre, une texture, un callback audio, les entrées.</p>
-      <p>Dans l’édition Rust, la coquille pilote le jeu par un seul appel — <code>Game::run_frame()</code> — puis récupère l’image et le son. C’est exactement l’interface qu’utilisent déjà les frontends de gase pour son interpréteur, et c’est par là qu’arriveront les mobiles et le Web. Voici où en sont les choses, honnêtement :</p>
+      <p>Dans l’édition Rust, la coquille n’est même plus la nôtre : c’est <strong>celle de gase</strong>. Le programme généré enregistre son code recompilé, puis lance gase, dont les frontends appellent <code>Genesis::run_frame()</code> une fois par image et récupèrent l’image et le son — exactement l’appel qu’ils font pour l’interpréteur. Le <a class="link" href="#in-gase">chapitre 10</a> raconte comment. Voici où en sont les choses, honnêtement :</p>
 
       <div class="platforms full">
         <article class="platform">
           <svg viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="6" width="36" height="24" rx="2"/><path d="M16 38h12M22 30v8"/></svg>
           <h3>Ordinateur</h3>
-          <p class="tool">cargo · SDL2 · <span class="chip chip--live">aujourd’hui</span></p>
-          <p>Le dossier généré est une crate Cargo. <code>cargo run --release</code> ouvre une fenêtre SDL2, avec le son et le clavier. <code>--headless</code> enchaîne les images sans fenêtre et peut enregistrer une capture — bien pratique en CI.</p>
+          <p class="tool">coquille SDL de gase · <span class="chip chip--live">aujourd’hui</span></p>
+          <p>Linux, macOS et Windows. <code>cargo run --release</code> ouvre la fenêtre de gase : menus, états de sauvegarde avec aperçu, rembobinage, manettes, réglages. <code>--headless</code> enchaîne les images sans fenêtre et peut enregistrer une capture — bien pratique en CI.</p>
         </article>
         <article class="platform">
           <svg viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="12" y="3" width="20" height="38" rx="3"/><path d="M19 36h6"/><path d="M8 18v8M36 18v8"/></svg>
           <h3>Android · iOS</h3>
-          <p class="tool">frontends mobiles de gase · <span class="chip chip--wip">ensuite</span></p>
-          <p>gase propose déjà des commandes tactiles et des applications pour les deux. L’idée est d’y faire tourner les jeux recompilés. Le premier jet en C a lui aussi des modèles Gradle et Xcode, mais ils n’ont jamais été compilés sur un vrai appareil.</p>
+          <p class="tool">gase-mobile · <span class="chip chip--wip">ensuite</span></p>
+          <p>Les applications de gase, commandes tactiles comprises, font déjà tourner cette même coquille. Ce qui manque est modeste : dans gase-mobile, <code>SDL_main</code> doit laisser une crate de jeu enregistrer son code avant le démarrage de la coquille. (Les modèles Gradle et Xcode du premier jet en C n’ont jamais été compilés sur un vrai appareil.)</p>
         </article>
         <article class="platform">
           <svg viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="22" cy="22" r="17"/><path d="M5 22h34M22 5c-6 6-6 28 0 34M22 5c6 6 6 28 0 34"/></svg>
           <h3>Web</h3>
-          <p class="tool">frontend web de gase · <span class="chip chip--wip">ensuite</span></p>
-          <p>Un runtime écrit sans une ligne d’<code>unsafe</code>, sur des puces que gase fait déjà tourner dans le navigateur : WebAssembly s’impose naturellement. Même chemin : brancher le jeu recompilé sur le frontend que gase possède déjà.</p>
+          <p class="tool">gase-web · <span class="chip chip--wip">ensuite</span></p>
+          <p>Un runtime sans une ligne d’<code>unsafe</code>, sur des puces que gase fait déjà tourner dans le navigateur : WebAssembly s’impose naturellement. Même petit chantier : les exports wasm de gase-web doivent laisser une crate de jeu s’enregistrer d’abord.</p>
         </article>
       </div>
 
@@ -619,10 +621,11 @@ L_000304:
         <pre tabindex="0"><code data-lang="sh">$ cargo install --path crates/recomp       # the gase-recomp CLI
 $ gase-recomp info   game.md
 $ gase-recomp disasm game.md | less
-$ gase-recomp recomp game.md -o build/game --platform desktop
-$ cd build/game &amp;&amp; cargo run --release</code></pre>
+$ gase-recomp recomp game.md -o build/game
+$ cd build/game &amp;&amp; cargo run --release        # gase's window, menus, save states
+$ cargo run --release -- --headless --frames 600 --screenshot shot.png</code></pre>
       </figure>
-      <p class="caption"><code>info</code> affiche l’en-tête, les vecteurs et l’état de la somme de contrôle ; <code>disasm</code> montre ce que l’analyse a trouvé ; <code>recomp</code> écrit une crate Cargo (<code>desktop</code> ou <code>headless</code>) avec le code généré dans <code>src/recomp/</code>. L’équivalent du premier jet est toujours là : <code>python -m gase recomp … --platform desktop|android|ios</code>.</p>
+      <p class="caption"><code>info</code> affiche l’en-tête, les vecteurs et l’état de la somme de contrôle ; <code>disasm</code> montre ce que l’analyse a trouvé ; <code>recomp</code> écrit une crate Cargo : <code>src/main.rs</code> enregistre le code et lance gase, le code généré vit dans <code>src/recomp/</code>, et <code>rom.bin</code> s’ouvre au démarrage. <code>--platform headless</code> se passe de SDL2. Toutes les options de gase s’appliquent (<code>--help</code>). L’équivalent du premier jet est toujours là : <code>python -m gase recomp … --platform desktop|android|ios</code>.</p>
     </div>
   </div>
 </section>
@@ -683,7 +686,7 @@ for exp, mine in zip(expected, got):
       <p>Cette console, c’est <a class="link" href="https://github.com/bthuner/gase" rel="noopener"><strong>gase</strong></a>, l’émulateur Mega Drive du même auteur : pédagogique comme ce projet, une crate par puce, <code>#![forbid(unsafe_code)]</code>, des cœurs de processeur validés sur environ <strong>2,6 millions de vecteurs de test matériels</strong>, et des frontends pour ordinateur, Android, iOS et le Web. Un recompilateur remplace le 68000, et rien d’autre. L’édition Rust — l’espace de travail <code>crates/</code> — recompile donc le 68000 et emprunte tout le reste à gase.</p>
 
       <h3>Réutiliser toutes les puces sauf une</h3>
-      <p>Réécrire pour un recompilateur un VDP avec la temporisation de sa FIFO et de son DMA, un YM2612, un Z80 et les mappers de cartouche, c’était écrire un deuxième émulateur, en moins bien. Or la structure <code>Hardware</code> de gase — toute sa carte mémoire — implémente déjà le trait <code>Bus</code> du 68000, celui auquel parle son interpréteur. Le code recompilé se branche sur ce même bus. gase n’a eu besoin d’<strong>aucune modification</strong> : c’est une dépendance git, figée sur un commit.</p>
+      <p>Réécrire pour un recompilateur un VDP avec la temporisation de sa FIFO et de son DMA, un YM2612, un Z80 et les mappers de cartouche, c’était écrire un deuxième émulateur, en moins bien. Or la structure <code>Hardware</code> de gase — toute sa carte mémoire — implémente déjà le trait <code>Bus</code> du 68000, celui auquel parle son interpréteur. Le code recompilé se branche sur ce même bus. Au départ, gase n’a eu besoin d’<strong>aucune modification</strong> : c’est une dépendance git, figée sur un commit. Plus tard, il a gagné un seul module, pour accueillir les jeux recompilés dans ses propres frontends — la fin de ce chapitre raconte cette histoire.</p>
 
       <div class="table-wrap">
         <table class="data">
@@ -697,16 +700,18 @@ for exp, mine in zip(expected, got):
             <tr><td>Cartouche</td><td>ROM seule</td><td><code>gase-core</code> : sauvegardes SRAM / EEPROM, mappers</td></tr>
             <tr><td>Manettes</td><td>3 boutons</td><td>Manettes 6 boutons</td></tr>
             <tr><td>Code inconnu</td><td>Arrêt, il faut recompiler</td><td>L’interpréteur de <code>gase-m68k</code> prend le relais</td></tr>
+            <tr><td>Frontends</td><td>Coquille SDL2 écrite pour le projet</td><td><strong>Ceux de gase</strong> : menus, états, rembobinage</td></tr>
           </tbody>
         </table>
       </div>
 
       <figure class="code">
         <div class="code__bar"><span class="file">Cargo.toml</span><span class="lang">TOML</span></div>
-        <pre tabindex="0"><code data-lang="toml"># The emulator we build on: every chip but the 68000 is reused as-is.
-gase-core  = { git = "https://github.com/bthuner/gase", rev = "c63957d4a020209b079230a565b1bce56c07e07b" }
-gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "c63957d4a020209b079230a565b1bce56c07e07b" }
-gase-vdp   = { git = "https://github.com/bthuner/gase", rev = "c63957d4a020209b079230a565b1bce56c07e07b" }</code></pre>
+        <pre tabindex="0"><code data-lang="toml"># The emulator we build on: every chip but the 68000 is reused as-is, and its
+# frontends run recompiled games. Keep this revision in sync with GASE_REV in
+# crates/recomp/src/project.rs (a test checks it).
+gase-core  = { git = "https://github.com/bthuner/gase", rev = "95bee66126a9acc23e62e7f9cffdfca3549b3f7f" }
+gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "95bee66126a9acc23e62e7f9cffdfca3549b3f7f" }</code></pre>
       </figure>
       <p class="caption">Leçon générale : avant d’écrire un runtime, cherchez un émulateur dont vous pouvez emprunter le bus. Le processeur est la seule pièce qu’un recompilateur remplace vraiment.</p>
 
@@ -744,9 +749,9 @@ gase-vdp   = { git = "https://github.com/bthuner/gase", rev = "c63957d4a020209b0
 }</code></pre>
       </figure>
 
-      <h3>La pile native n’est qu’un cache</h3>
+      <h3 id="stack-cache">La pile native n’est qu’un cache</h3>
       <p>Un effet de bord s’est révélé être la meilleure idée de la réécriture. Puisqu’une fonction commence par <code>match pc</code>, on peut y entrer par <strong>n’importe lequel</strong> de ses blocs, pas seulement par le haut. Le premier jet en C avait besoin de points de reprise et d’un trampoline pour ce cas rare ; ici, c’est le cas normal. La pile d’appels native de Rust n’a donc pas à refléter celle du 68000 : ce n’est qu’un <strong>cache</strong> de la pile émulée, qui vit en RAM de travail, comme sur la vraie console.</p>
-      <p>Et un cache, ça se jette. Quand un point de contrôle constate que l’image est terminée, le runtime lève un drapeau <code>unwinding</code> : chaque fonction rend la main, jusqu’à <code>run_frame</code>, en laissant <code>cx.pc</code> sur le bloc où reprendre. L’image suivante relance simplement le répartiteur sur <code>cx.pc</code>. Le jeu devient <strong>exécutable image par image</strong> — <code>Game::run_frame()</code> joue exactement une image puis rend la main, ce qui est précisément ce qu’attend tout frontend (fenêtre SDL, téléphone, navigateur).</p>
+      <p>Et un cache, ça se jette. Quand un point de contrôle constate que l’image est terminée, le runtime lève un drapeau <code>unwinding</code> : chaque fonction rend la main, jusqu’à <code>run_frame</code>, en laissant <code>cx.pc</code> sur le bloc où reprendre. L’image suivante relance simplement le répartiteur sur <code>cx.pc</code>. Le jeu devient <strong>exécutable image par image</strong> — <code>run_frame</code> joue exactement une image puis rend la main, ce qui est précisément ce qu’attend tout frontend (fenêtre SDL, téléphone, navigateur). Retenez-le : c’est ce qui permettra plus tard au jeu d’emménager dans <a class="link" href="#in-gase">les frontends de gase</a>.</p>
 
       <figure class="diagram wide" style="overflow-x:auto">
         <svg viewBox="0 0 800 392" role="img" aria-labelledby="stk-svg-t stk-svg-d" style="min-width:620px">
@@ -830,18 +835,18 @@ pub fn run_frame(&amp;mut self) {
       <figure class="code">
         <div class="code__bar"><span class="file">crates/runtime/src/cpu.rs · interpret()</span><span class="lang">Rust</span></div>
         <pre tabindex="0"><code data-lang="rs">loop {
-    cpu.set_interrupt_level(self.m.irq_level());
+    self.cpu.set_interrupt_level(self.m.irq_level());
     self.m.set_clock(self.cycles);
-    self.cycles += u64::from(cpu.step(&amp;mut self.m));
-    // ... scanline events, end of frame ...
-    if (self.code.is_block)(cpu.pc()) {
+    self.cycles += u64::from(self.cpu.step(&amp;mut DynBus(&amp;mut *self.m)));
+    // ... catch up at the next event, unwind at the end of the frame ...
+    if (self.code.is_block)(self.cpu.pc() &amp; 0xFF_FFFF) {
         break;
     }
 }</code></pre>
       </figure>
 
       <h3>L’ordonnanceur, mis à l’envers</h3>
-      <p>Le <code>run_frame</code> de gase pilote son 68000 instruction par instruction et traite les événements de ligne entre deux. Un recompilateur ne peut pas fonctionner ainsi : le code s’exécute d’une traite. <code>GenesisMachine</code> inverse donc les rôles. À chaque <strong>point de contrôle</strong> (chaque branchement arrière) et <strong>avant chaque accès d’E/S</strong>, le code recompilé indique à la machine combien de cycles il a consommés, et la machine <strong>rattrape son retard</strong> : elle fait avancer jusqu’à cet instant la machine à états des lignes, le Z80 et l’audio. Le temps se compte en tops d’horloge maître — le 68000 tourne à maître / 7, le Z80 à maître / 15, une ligne dure 3420 tops, le HBlank commence au top 2650 et, sur la première ligne de blanking, le VBlank se déclenche au top 770.</p>
+      <p>Le <code>run_frame</code> de gase pilote son 68000 instruction par instruction et traite les événements de ligne entre deux. Un recompilateur ne peut pas fonctionner ainsi : le code s’exécute d’une traite. On inverse donc les rôles. À chaque <strong>point de contrôle</strong> (chaque branchement arrière) et <strong>avant chaque accès d’E/S</strong>, le code recompilé indique à la machine combien de cycles il a consommés, et la machine <strong>rattrape son retard</strong> : elle fait avancer jusqu’à cet instant la machine à états des lignes, le Z80 et l’audio. Le temps se compte en tops d’horloge maître — le 68000 tourne à maître / 7, le Z80 à maître / 15, une ligne dure 3420 tops, le HBlank commence au top 2650 et, sur la première ligne de blanking, le VBlank se déclenche au top 770.</p>
 
       <figure class="diagram wide" style="overflow-x:auto">
         <svg viewBox="0 0 800 300" role="img" aria-labelledby="sch-svg-t sch-svg-d" style="min-width:620px">
@@ -890,14 +895,16 @@ pub fn run_frame(&amp;mut self) {
         <p class="caption">Une ligne de balayage, en tops d’horloge maître. *Le VBlank ne se déclenche que sur la première ligne de blanking ; le HBlank, à chaque ligne.</p>
       </figure>
       <figure class="code">
-        <div class="code__bar"><span class="file">crates/runtime/src/genesis.rs</span><span class="lang">Rust</span></div>
-        <pre tabindex="0"><code data-lang="rs">fn catch_up(&amp;mut self, cycles: u64) -&gt; u64 {
-    self.cpu_clock = self.cpu_clock.max(cycles * 7);
-    self.run_to(self.cpu_clock);
-    self.next_event_tick().div_ceil(7)
+        <div class="code__bar"><span class="file">gase · crates/core/src/system/external.rs</span><span class="lang">Rust</span></div>
+        <pre tabindex="0"><code data-lang="rs">/// Run every other chip up to `cycles` (scanlines, Z80, sound) and
+/// return the cycle at which the console next needs attention.
+pub fn catch_up(&amp;mut self, cycles: u64) -&gt; u64 {
+    self.set_clock(cycles);
+    self.run_to(self.clock);
+    self.next_event().div_ceil(7)
 }</code></pre>
       </figure>
-      <p class="caption">Cycles processeur × 7 = tops maître. La valeur renvoyée est la prochaine échéance : tant que rien n’est dû, <code>cx.poll</code> reste une simple comparaison.</p>
+      <p class="caption">Cycles processeur × 7 = tops maître. La valeur renvoyée est la prochaine échéance : tant que rien n’est dû, <code>cx.poll</code> reste une simple comparaison. gase-recomp a d’abord écrit lui-même cet ordonnanceur inversé, sous le nom de <code>GenesisMachine</code> ; il vit désormais dans gase, sous le nom d’<code>External</code> — <a class="link" href="#in-gase">voir plus bas</a>.</p>
 
       <h3>Un meilleur arbitre</h3>
       <p>Le premier jet était comparé à Musashi. L’édition Rust est comparée à <strong>l’interpréteur de gase</strong> — celui qui est validé sur des vecteurs de test matériels. Même méthode qu’au chapitre 09, référence plus exigeante :</p>
@@ -944,7 +951,7 @@ pub fn run_frame(&amp;mut self) {
       </figure>
       <p class="caption">Leçon générale : vos tests ne valent que ce que vaut votre référence. Deux implémentations d’accord ne prouvent rien si elles partagent la même erreur.</p>
 
-      <h3>Le prix à payer : le temps de compilation</h3>
+      <h3 id="build-cost">Le prix à payer : le temps de compilation</h3>
       <p>Pour la recompilation statique, Rust comporte un vrai risque : <strong>rustc face à d’énormes fonctions générées</strong>. Pour le mesurer avant de parier dessus, un programme d’exemple fabrique une ROM synthétique remplie de code aléatoire valide, de la taille d’un gros jeu Mega Drive :</p>
 
       <ul class="figures full" aria-label="Expérience de temps de compilation">
@@ -961,7 +968,7 @@ pub fn run_frame(&amp;mut self) {
         <li><span>Builds de dev rapides, dépendances optimisées<small><code>opt-level = 1</code> pour le code du jeu, <code>opt-level = 3</code> pour les puces de gase : on peut tester en jouant sans build release complet.</small></span><span class="chip chip--live">en place</span></li>
         <li><span>Génération de code en parallèle<small><code>codegen-units = 16</code> en release laisse LLVM travailler sur plusieurs morceaux à la fois.</small></span><span class="chip chip--live">en place</span></li>
         <li><span>Blocs courts, fonctions découpées<small>Les suites d’instructions sans saut sont coupées toutes les 24 instructions, et les grosses routines 68000 deviennent plusieurs fonctions <code>#[inline(never)]</code> d’environ 48 instructions, qui rendent le <code>pc</code> suivant à un petit <code>match</code> (146&nbsp;s → 107&nbsp;s sur le test de 30 000 instructions). <code>--chunk</code> et <code>--max-block</code> permettent d’expérimenter.</small></span><span class="chip chip--live">en place</span></li>
-        <li><span>Inlining sobre<small>Seuls le chemin rapide RAM/ROM des accès mémoire et les calculs de flags fréquents sont inlinés ; les entrées-sorties, le BCD, les divisions et les rotations via X restent hors ligne, pour que chaque instruction produise peu d’IR.</small></span><span class="chip chip--live">en place</span></li>
+        <li><span>Inlining sobre<small>Seuls les calculs de flags fréquents sont inlinés ; un accès mémoire est un appel à la console (dont le chemin rapide en RAM de travail est inliné côté gase), et le BCD, les divisions et les rotations via X restent hors ligne, pour que chaque instruction produise peu d’IR.</small></span><span class="chip chip--live">en place</span></li>
       </ul>
       <figure class="code">
         <div class="code__bar"><span class="file">Cargo.toml généré</span><span class="lang">TOML</span></div>
@@ -975,6 +982,224 @@ opt-level = 3
 [profile.release]
 codegen-units = 16
 lto = "off"</code></pre>
+      </figure>
+
+      <h3 id="in-gase">Enfin chez soi : dans les frontends de gase</h3>
+      <p>Jusque-là, l’édition Rust traînait sa propre petite coquille : une fenêtre SDL et un lanceur sans écran, dans la crate du runtime. Ils fonctionnaient — sans menus, sans manettes, sans états de sauvegarde. gase avait déjà tout cela, sur toutes ses plateformes. Le réécrire, c’était refaire l’erreur du VDP. Le jeu recompilé a donc emménagé chez gase.</p>
+      <p>L’ordonnanceur inversé — celui que gase-recomp s’était écrit, sous le nom de <code>GenesisMachine</code> — est parti <strong>dans gase</strong>, là où il a sa place, sous la forme d’un <strong>mode processeur externe</strong> : <code>gase_core::system::external</code>. Tout son contrat tient en un trait, et <code>External</code> est la console telle qu’un 68000 externe la voit pendant une image : le même <code>Bus</code> que celui de l’interpréteur, plus <code>set_clock</code>, <code>catch_up</code> et <code>frame_done</code>. Côté gase, le chemin externe de <code>Genesis::run_frame</code> tient en vingt-cinq lignes environ :</p>
+
+      <div class="pair full">
+        <figure class="code">
+          <div class="code__bar"><span class="file">gase · crates/core/src/system/external.rs</span><span class="lang">Rust</span></div>
+          <pre tabindex="0"><code data-lang="rs">/// A replacement for the 68000 interpreter.
+pub trait ExternalCpu: fmt::Debug + Send {
+    /// `cpu` holds the CPU state: load it first,
+    /// store it back before returning. It is also
+    /// an interpreter, for code you cannot run.
+    fn run_frame(&amp;mut self, cpu: &amp;mut M68k,
+                 console: &amp;mut External&lt;'_&gt;);
+
+    /// A copy (consoles are cloned for save
+    /// states and rewind).
+    fn clone_box(&amp;self) -&gt; Box&lt;dyn ExternalCpu&gt;;
+    // ... describe(), for gase's game line ...
+}</code></pre>
+        </figure>
+        <figure class="code">
+          <div class="code__bar"><span class="file">gase · crates/core/src/system.rs</span><span class="lang">Rust</span></div>
+          <pre tabindex="0"><code data-lang="rs">fn run_external_frame(&amp;mut self) {
+    let mut cpu = self.external.take().expect("an external CPU");
+    let frame_start = self.next_line;
+    let mut console = external::External::new(
+        &amp;mut self.hw,
+        &amp;mut self.z80,
+        &amp;mut self.z80_clock,
+        self.m68k_clock.max(frame_start),
+        frame_start,
+    );
+    cpu.run_frame(&amp;mut self.m68k, &amp;mut console);
+    // An external CPU must return at the end of the frame; if it came
+    // back early, the console finishes the frame with the 68000 idle.
+    console.finish_frame();
+    // ... clocks, audio, frame count: as after a normal frame ...
+}</code></pre>
+        </figure>
+      </div>
+
+      <h3>Entre deux images, le processeur appartient à gase</h3>
+      <p>Voici ce qui rend l’intégration propre. À chaque image, le processeur recompilé <strong>charge</strong> ses registres depuis le <code>M68k</code> de gase — l’état même de l’interpréteur —, s’exécute, puis les y <strong>range</strong>. Entre deux images, le 68000 est celui de gase, exactement comme si l’interpréteur avait tourné. Tout ce que gase a construit autour de cette structure continue donc de marcher sans rien savoir du changement : les <strong>états de sauvegarde</strong>, le <strong>rembobinage</strong>, les vues de registres du <strong>débogueur</strong>. Et ce même <code>M68k</code> sert d’interpréteur de repli pour le code que l’analyse a manqué.</p>
+      <p>Cela ne marche que grâce à <a class="link" href="#stack-cache">l’idée du cache</a>, plus haut. Un recompilateur dont la pile native reflétait celle du 68000 ne pourrait jamais passer la main : une partie de son état serait faite d’adresses de retour enfouies dans des cadres Rust. Le nôtre <strong>se déroule à chaque fin d’image</strong> : quand <code>run_frame</code> rend la main, il ne reste rien nulle part, sauf dans les registres et en RAM — exactement ce que gase sait déjà sauvegarder.</p>
+
+      <div class="pair full">
+        <figure class="code">
+          <div class="code__bar"><span class="file">crates/runtime/src/recompiled.rs</span><span class="lang">Rust</span></div>
+          <pre tabindex="0"><code data-lang="rs">impl ExternalCpu for Recompiled {
+    fn run_frame(&amp;mut self, cpu: &amp;mut M68k,
+                 console: &amp;mut External&lt;'_&gt;) {
+        let mut cx = Cx::new(cpu, console, self.code);
+        cx.missing = std::mem::take(&amp;mut self.missing);
+        cx.missing_log = self.missing_log.clone();
+        cx.run_frame();
+        self.missing = cx.finish();
+    }
+    // ... clone_box(), describe() ...
+}</code></pre>
+        </figure>
+        <figure class="code">
+          <div class="code__bar"><span class="file">crates/runtime/src/cpu.rs</span><span class="lang">Rust</span></div>
+          <pre tabindex="0"><code data-lang="rs">/// Start a frame: load the CPU state from `cpu`.
+pub fn new(cpu: &amp;'a mut M68k, m: &amp;'a mut dyn Machine, code: Code) -&gt; Self {
+    let cycles = m.cycles();
+    let next_event = m.catch_up(cycles);
+    let mut cx = Self { d: cpu.d, a: cpu.a, /* ... */ m, cpu, code, /* ... */ };
+    cx.load_registers();
+    cx
+}
+
+/// End the frame: store the CPU state back into the interpreter.
+pub fn finish(mut self) -&gt; BTreeSet&lt;u32&gt; {
+    self.store_registers();
+    let pc = self.pc;
+    self.cpu.set_pc(&amp;mut DynBus(&amp;mut *self.m), pc);
+    self.missing
+}</code></pre>
+        </figure>
+      </div>
+
+      <figure class="diagram wide" style="overflow-x:auto">
+        <svg viewBox="0 0 800 410" role="img" aria-labelledby="own-svg-t own-svg-d" style="min-width:620px">
+          <title id="own-svg-t">Qui possède quoi pendant une image d’un jeu recompilé</title>
+          <desc id="own-svg-d">Le frontend de gase appelle Genesis::run_frame. Si un processeur est enregistré pour le CRC-32 de la ROM, gase appelle ExternalCpu::run_frame avec son M68k et une vue External de la console ; sinon, son interpréteur tourne comme d’habitude. À l’intérieur, Cx::new charge les registres depuis M68k, les blocs recompilés s’exécutent et, à chaque point de contrôle, External::catch_up fait avancer les lignes du VDP, le Z80 et le son. Une fois frame_done levé, Cx::finish range les registres dans M68k. Entre deux images, M68k et la RAM contiennent tout l’état, que les états de sauvegarde, le rembobinage et le débogueur lisent tels quels. Le code inconnu est exécuté pas à pas par ce même M68k.</desc>
+          <g font-size="12">
+            <text x="20" y="22" font-size="11" class="dg-blu">GASE · MAÎTRE DE L’IMAGE</text>
+            <rect class="dg-box dg-box--native" x="20" y="34" width="160" height="52" rx="4"/>
+            <text x="34" y="56">frontend de gase</text><text x="34" y="74" font-size="11" class="dg-dim">fenêtre · sans écran</text>
+            <rect class="dg-box dg-box--native" x="220" y="34" width="160" height="52" rx="4"/>
+            <text x="234" y="56">Genesis::run_frame</text><text x="234" y="74" font-size="11" class="dg-dim">à chaque image</text>
+            <rect class="dg-box" x="420" y="34" width="160" height="52" rx="4"/>
+            <text x="434" y="56" class="dg-yel">enregistré ?</text><text x="434" y="74" font-size="11" class="dg-dim">CRC-32 de la ROM</text>
+            <rect class="dg-box dg-box--gone" x="620" y="34" width="160" height="52" rx="4"/>
+            <text x="634" y="56" class="dg-dim">interpréteur</text><text x="634" y="74" font-size="11" class="dg-dim">toute autre ROM</text>
+            <path class="dg-edge" d="M180 60 H220 M380 60 H420 M580 60 H620"/>
+            <text x="600" y="52" font-size="11" text-anchor="middle" class="dg-dim">non</text>
+            <path class="dg-edge dg-edge--call" d="M500 86 V130"/>
+            <text x="510" y="114" font-size="11" class="dg-acc">oui</text>
+
+            <rect class="dg-box dg-box--gone" x="8" y="130" width="784" height="150" rx="6"/>
+            <text x="20" y="154" font-size="11" class="dg-acc">GASE-RECOMP · ExternalCpu::run_frame(cpu: &amp;mut M68k, console: &amp;mut External)</text>
+            <rect class="dg-box dg-box--entry" x="20" y="196" width="160" height="52" rx="4"/>
+            <text x="34" y="218">Cx::new</text><text x="34" y="236" font-size="11" class="dg-dim">regs ← M68k</text>
+            <rect class="dg-box dg-box--code" x="220" y="196" width="160" height="52" rx="4"/>
+            <text x="234" y="218" class="dg-acc">recompilé</text><text x="234" y="236" font-size="11" class="dg-dim">blocs · cx.poll</text>
+            <rect class="dg-box dg-box--native" x="420" y="196" width="160" height="52" rx="4"/>
+            <text x="434" y="218">External::catch_up</text><text x="434" y="236" font-size="11" class="dg-dim">VDP · Z80 · son</text>
+            <rect class="dg-box dg-box--entry" x="620" y="196" width="160" height="52" rx="4"/>
+            <text x="634" y="218">Cx::finish</text><text x="634" y="236" font-size="11" class="dg-dim">regs → M68k</text>
+            <path class="dg-edge" d="M180 222 H220"/>
+            <path class="dg-edge dg-edge--call" d="M380 212 H420"/>
+            <text x="400" y="206" font-size="11" text-anchor="middle" class="dg-acc">poll</text>
+            <path class="dg-edge dg-edge--loop" d="M420 234 H380"/>
+            <text x="400" y="268" font-size="11" text-anchor="middle" class="dg-grn">échéance</text>
+            <path class="dg-edge dg-edge--call" d="M580 222 H620"/>
+            <text x="600" y="268" font-size="11" text-anchor="middle" class="dg-yel">frame_done</text>
+
+            <path class="dg-edge dg-edge--unk" d="M260 248 V300 H100 V322"/>
+            <text x="112" y="294" font-size="11" class="dg-yel">pc inconnu</text>
+            <rect class="dg-box dg-box--native" x="20" y="322" width="160" height="52" rx="4"/>
+            <text x="34" y="344">M68k::step</text><text x="34" y="362" font-size="11" class="dg-dim">même CPU, en repli</text>
+            <path class="dg-edge" d="M700 248 V322"/>
+            <rect class="dg-box dg-box--ram" x="620" y="322" width="160" height="52" rx="4"/>
+            <text x="634" y="344" class="dg-grn">M68k + RAM</text><text x="634" y="362" font-size="11" class="dg-dim">tout l’état</text>
+            <path class="dg-edge dg-edge--loop" d="M620 348 H580"/>
+            <rect class="dg-box dg-box--native" x="220" y="322" width="360" height="52" rx="4"/>
+            <text x="234" y="344">états · rembobinage · débogueur</text><text x="234" y="362" font-size="11" class="dg-dim">lisent les mêmes registres, tels quels</text>
+            <text x="20" y="402" font-size="11" class="dg-grn">entre deux images, rien ne vit sur la pile native : la vérité, c’est M68k + RAM</text>
+          </g>
+        </svg>
+        <ul class="legend">
+          <li style="--c:var(--blue)">code de gase</li>
+          <li style="--c:var(--accent)">code de gase-recomp</li>
+          <li class="dashed" style="--c:var(--green)">poll ⇄ catch_up · état partagé</li>
+          <li class="dashed" style="--c:var(--yellow)">non recompilé : interprété</li>
+        </ul>
+      </figure>
+
+      <p>La crate du runtime en est sortie <strong>allégée d’environ 600&nbsp;lignes</strong> : son propre ordonnanceur, son enveloppe de jeu et ses deux frontends ont disparu. <code>Cx&lt;'a&gt;</code> se contente désormais d’emprunter la console sous la forme d’un <code>&amp;mut dyn Machine</code>, le temps d’une image. Pas de générique dans le code généré : chaque accès mémoire passe par un appel indirect, négligeable à 7,67&nbsp;MHz — et chaque fonction générée reste plus petite pour LLVM, dont nous venons de lire <a class="link" href="#build-cost">l’addition</a>.</p>
+
+      <h3>Un registre, indexé par somme de contrôle</h3>
+      <p>Comment gase sait-il quelle ROM est recompilée ? Le programme généré appelle <code>gase_recomp_runtime::register(ROM_CRC32, recomp::cpu)</code> dès le début de <code>main</code>, puis passe la main à <code>gase::run_command_line(args)</code> — tout le <code>main</code> de gase, déplacé dans sa bibliothèque pour l’occasion. Dès lors, toute console que gase crée pour cette ROM, reconnue à son CRC-32, exécute le code recompilé ; toute autre ROM tourne sur l’interpréteur, comme d’habitude. Voici le <code>main.rs</code> qu’écrit gase-recomp, moins une petite fonction qui cherche <code>rom.bin</code> :</p>
+      <figure class="code">
+        <div class="code__bar"><span class="file">src/main.rs · généré</span><span class="lang">Rust</span></div>
+        <pre tabindex="0"><code data-lang="rs">mod recomp;
+
+fn main() -&gt; ExitCode {
+    gase_recomp_runtime::register(recomp::ROM_CRC32, recomp::cpu);
+    let mut args: Vec&lt;String&gt; = std::env::args().skip(1).collect();
+    // No ROM on the command line: open the one shipped next to the game.
+    if !args.iter().any(|a| Path::new(a).is_file()) {
+        if let Some(rom) = default_rom() {
+            args.push(rom.to_string_lossy().into_owned());
+        }
+    }
+    gase::run_command_line(args)
+}</code></pre>
+      </figure>
+      <p>Le binaire du jeu généré <strong>est donc gase</strong> — fenêtre, menus, états de sauvegarde avec aperçu, rembobinage, manettes, commandes tactiles, réglages —, avec un processeur de plus. Ouvrez une autre cartouche depuis son menu : elle tourne tout simplement sur l’interpréteur.</p>
+
+      <aside class="note" aria-label="Piège : un seul gase-core">
+        <span class="note__tag">Piège · un seul gase-core</span>
+        <p>Le registre est une <code>static</code> de gase-core. Si le jeu et le runtime demandaient gase à deux révisions différentes, Cargo compilerait sans broncher <strong>deux exemplaires</strong> de gase-core : le jeu s’enregistrerait dans l’un, le frontend de gase créerait ses consoles avec l’autre, et le jeu tournerait en silence sur l’interpréteur.</p>
+        <p>Le <code>Cargo.toml</code> généré fige donc gase à la révision exacte du runtime, et un test unitaire échoue dès que le <code>GASE_REV</code> du générateur et l’espace de travail divergent.</p>
+      </aside>
+      <figure class="code">
+        <div class="code__bar"><span class="file">Cargo.toml généré</span><span class="lang">TOML</span></div>
+        <pre tabindex="0"><code data-lang="toml">[dependencies]
+gase-recomp-runtime = { git = "https://github.com/bthuner/gase-recomp", branch = "develop" }
+# gase's frontends, at the revision the runtime uses (one gase-core).
+gase = { git = "https://github.com/bthuner/gase", rev = "95bee66126a9acc23e62e7f9cffdfca3549b3f7f", default-features = false }
+
+[features]
+default = ["window"]
+# gase's window, sound and gamepads (needs the SDL2 development package).
+window = ["gase/sdl"]</code></pre>
+      </figure>
+
+      <h3>Tester un ordonnanceur inversé</h3>
+      <p>Déplacer l’ordonnanceur dans gase posait une question évidente : <code>External</code> est-il vraiment la même console que <code>Genesis::run_frame</code>, simplement retournée ? gase y répond avec le processeur auquel il se fie le plus — son propre interpréteur. Son test fait tourner l’interpréteur <em>à travers</em> <code>External</code>, au moyen d’un <code>ExternalCpu</code> de dix lignes qui avance d’une instruction à la fois, et vérifie que la RAM de travail, la RAM du Z80, l’image et les registres sont <strong>identiques</strong> à ceux de l’ordonnanceur normal : avec les interruptions, avec le Z80 qui tourne à côté, et avec un DMA 68000→VDP qui doit geler le processeur exactement aussi longtemps. Les états de sauvegarde font l’aller-retour, et le registre choisit bien les consoles par somme de contrôle.</p>
+      <figure class="code">
+        <div class="code__bar"><span class="file">gase · crates/core/tests/external.rs</span><span class="lang">Rust</span></div>
+        <pre tabindex="0"><code data-lang="rs">impl ExternalCpu for Stepper {
+    fn run_frame(&amp;mut self, cpu: &amp;mut M68k, console: &amp;mut External&lt;'_&gt;) {
+        let mut cycles = console.cycles();
+        while !console.frame_done() {
+            console.set_clock(cycles);
+            cpu.set_interrupt_level(console.interrupt_level());
+            cycles += u64::from(cpu.step(console));
+            cycles = console.stalled_clock(cycles);
+            console.catch_up(cycles);
+        }
+    }
+    // ...
+}</code></pre>
+      </figure>
+      <p class="caption">Leçon générale : pour tester un ordonnanceur inversé, faites-y tourner un processeur dont vous êtes sûr. Toute différence est alors la faute de l’ordonnanceur, jamais celle du processeur.</p>
+
+      <h3>La preuve, à l’écran</h3>
+      <p>Sur la ROM de test du projet, le frontend sans écran de gase présente désormais le jeu avec ses propres mots — et le fait tourner à environ 1 800&nbsp;images par seconde. Un test de bout en bout (<code>crates/e2e</code>) vérifie qu’après 60&nbsp;images le jeu recompilé affiche la même image et contient la même RAM que sous l’interpréteur de gase, et que les états de sauvegarde font l’aller-retour.</p>
+      <figure class="code">
+        <div class="code__bar"><span class="file">terminal · build/game</span><span class="lang">Shell</span></div>
+        <pre tabindex="0"><code data-lang="sh">$ cargo run --release -- --headless --frames 600 --screenshot shot.png
+GASE TEST ROM [GM 00000000-00] region Americas, 1 KiB ROM, checksum ok, 68000: "GASE TEST ROM" recompiled by gase-recomp
+Saved shot.png
+$ cargo run --release -- --headless --bench
+600 frames in 321.25ms: 1867.7 fps (31.2x real time)</code></pre>
+      </figure>
+      <figure class="shot wide">
+        <div class="shot__frame">
+          <div class="code__bar"><span class="file">gase · menu de pause · jeu recompilé</span><span class="lang">960 × 672</span></div>
+          <img src="../assets/img/recompiled-in-gase.png" width="960" height="672" loading="lazy" decoding="async" alt="Le menu de pause de gase par-dessus la ROM de test recompilée. Sous le titre « Paused » et le nom du jeu, GASE TEST ROM, on lit les entrées Resume, Save state, Load state, Reset, Settings et Close game ; en bas : Esc resume, Tab fast-forward, Backspace rewind. De part et d’autre, l’écran gris du jeu, barré d’une bande rouge et d’une bande turquoise en damier.">
+        </div>
+        <figcaption class="caption">Une vraie capture d’écran : le menu de pause de gase par-dessus la ROM de test recompilée. États de sauvegarde, rembobinage et avance rapide sont ceux de gase — le binaire du jeu n’a jamais eu à les implémenter.</figcaption>
       </figure>
 
       <h3>Deux implémentations, une leçon</h3>
@@ -1036,7 +1261,7 @@ lto = "off"</code></pre>
         <li><button type="button"><span class="box">04</span><span class="t">Génération</span><span>Un bloc par instruction (étiquettes C ou <code>match</code> Rust), drapeaux via des fonctions inline.</span></button></li>
         <li><button type="button"><span class="box">05</span><span class="t">Runtime</span><span>Empruntez les puces d’un émulateur si vous le pouvez ; ajoutez un ordonnanceur qui rattrape le temps.</span></button></li>
         <li><button type="button"><span class="box">06</span><span class="t">Répartition &amp; rétroaction</span><span>Sauts indirects via un répartiteur ; interpréter les manques, les noter, recompiler.</span></button></li>
-        <li><button type="button"><span class="box">07</span><span class="t">Coquilles</span><span>Exposer <code>run_frame()</code> ; garder chaque frontend mince.</span></button></li>
+        <li><button type="button"><span class="box">07</span><span class="t">Coquilles</span><span>Exposer <code>run_frame()</code> ; mieux encore, se brancher sur les frontends d’un émulateur.</span></button></li>
         <li><button type="button"><span class="box">08</span><span class="t">Tests différentiels</span><span>Diff contre la meilleure référence possible, en CI, pour toujours.</span></button></li>
       </ol>
       <p class="checklist-meta" data-check-meta aria-live="polite"></p>

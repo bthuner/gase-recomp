@@ -32,8 +32,8 @@
     rs: [
       ["c", /\/\/[^\n]*|\/\*[\s\S]*?\*\//y],
       ["s", /"(?:\\.|[^"\\\n])*"/y],
-      ["k", /\b(?:fn|let|mut|loop|match|if|else|return|continue|break|pub|use|mod|impl|for|in|while|struct|enum|self|Self|as|const|true|false|where|move)\b/y],
-      ["t", /\b(?:u8|u16|u32|u64|i8|i16|i32|i64|usize|bool|Cx|Option|Some|None|Box|M68k|Machine)\b/y],
+      ["k", /\b(?:fn|let|mut|loop|match|if|else|return|continue|break|pub|use|mod|impl|for|in|while|struct|enum|self|Self|as|const|true|false|where|move|dyn|trait)\b/y],
+      ["t", /\b(?:u8|u16|u32|u64|i8|i16|i32|i64|usize|bool|Cx|Option|Some|None|Box|M68k|Machine|External|ExternalCpu|String|Vec|BTreeSet|ExitCode|Path)\b/y],
       ["n", /\b0x[0-9A-Fa-f_]+\b|\b\d[\d_]*\b/y],
       ["f", /\b[A-Za-z_]\w*!?(?=\s*\()/y]
     ],

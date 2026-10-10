@@ -557,6 +557,14 @@ code {
   line-height: 1.5;
 }
 
+/* ------------------------------------------------- screenshot figure */
+
+.shot { margin: 2.4em 0; }
+.shot__frame { border: 1px solid var(--line-2); border-radius: 6px; overflow: hidden; background: #000; }
+.shot__frame .code__bar .lang { white-space: nowrap; }
+.shot img { width: 100%; height: auto; }
+@media (min-width: 1000px) { .shot img { image-rendering: pixelated; } }
+
 /* ------------------------------------------------------------- steps */
 
 .steps {
