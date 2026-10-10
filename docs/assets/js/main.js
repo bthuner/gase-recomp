@@ -17,7 +17,7 @@
   function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 
   /* ------------------------------------------------------------------
-     1. Tiny syntax highlighter (C, 68000 asm, Python, shell)
+     1. Tiny syntax highlighter (C, Rust, TOML, 68000 asm, Python, shell)
      ------------------------------------------------------------------ */
   var RULES = {
     c: [
@@ -28,6 +28,21 @@
       ["n", /\b0x[0-9A-Fa-f]+[uU]?\b|\b\d+\b/y],
       ["f", /\b[A-Za-z_]\w*(?=\s*\()/y],
       ["l", /\bL_[0-9A-Fa-f]+\b/y]
+    ],
+    rs: [
+      ["c", /\/\/[^\n]*|\/\*[\s\S]*?\*\//y],
+      ["s", /"(?:\\.|[^"\\\n])*"/y],
+      ["k", /\b(?:fn|let|mut|loop|match|if|else|return|continue|break|pub|use|mod|impl|for|in|while|struct|enum|self|Self|as|const|true|false|where|move)\b/y],
+      ["t", /\b(?:u8|u16|u32|u64|i8|i16|i32|i64|usize|bool|Cx|Option|Some|None|Box|M68k|Machine)\b/y],
+      ["n", /\b0x[0-9A-Fa-f_]+\b|\b\d[\d_]*\b/y],
+      ["f", /\b[A-Za-z_]\w*!?(?=\s*\()/y]
+    ],
+    toml: [
+      ["c", /#[^\n]*/y],
+      ["k", /^\[[^\]\n]+\]/my],
+      ["s", /"(?:\\.|[^"\\\n])*"/y],
+      ["t", /\b[A-Za-z_][\w.-]*(?=\s*=)/y],
+      ["n", /\b\d+\b/y]
     ],
     asm: [
       ["c", /;[^\n]*/y],
@@ -403,17 +418,18 @@
     var HEX = ("4E75 3080 D041 6100 0010 41F9 00FF 0000 4EB9 0000 1234 51C8 FFFC 23FC 4000 0003 00C0 0004 " +
       "4A79 00C0 0004 66F8 3E3C 00FF 2F08 7000 4E71 0C40 0003 6E12 E548 207B 0006 4ED0 46FC 2700 " +
       "33FC 8F02 00C0 0004 4CDF 7FFF 4E73 1018 B03C 0020 67F4 5340").split(" ");
+    // generated code, Rust edition and C first draft interleaved
     var CL = [
-      "{ uint32_t v = (uint16_t)D(0); W16(A(0), v); op_logic(v, 2); } CYC(8);",
+      "0x27E => { cx.cycles += 18; let v = cx.r8(0xFF0000); cx.logic(v, 1);",
       "PUSH32(0x00000304); f_00000312(); if (gase_cpu.pc != 0x00000304) goto unwind;",
-      "L_000220: SET16(D(1), op_add(D(1), R16(A(0) + 2), 2)); CYC(8);",
+      "if cx.cond(7 /* eq */) { if !cx.poll(0x27E) { return; } pc = 0x27E; continue; }",
       "if (!gase_cpu.z) { CYC(10); POLL(0x00000248); goto L_000248; }",
-      "A(0) = 0x00FF0000; CYC(12);",
+      "if !cx.call(f_0002E6, 0x2E6, 0x296) { return; } pc = 0x296;",
       "gase_cpu.pc = POP32(); return;",
-      "W32(0xC00004, 0x40000003); CYC(20);",
+      "cx.w32(0xC00004, 0x40000003); cx.cycles += 20;",
       "{ uint32_t v = R32(A(1)); A(1) += 4; W32(A(0), v); op_logic(v, 4); } CYC(20);",
-      "if (--D16(7) != 0xFFFF) { POLL(0x0000021C); goto L_00021C; }",
-      "gase_dispatch(R32(A(0)));  /* jmp (a0) */"
+      "let r = cx.add(d, s, 2); cx.w16(ea_d, r);",
+      "_ => { cx.pc = pc; return; }  // back to the dispatcher"
     ];
     var COLORS = ["#FF4900", "#2492FF", "#6DFF92", "#FFDB48"];
     var W = 0, H = 0, dpr = 1, cw = 7.8, lh = 20, rows = [], seamX = 0, seamTarget = 0, running = false, raf = 0, t0 = 0;
