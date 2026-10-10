@@ -1098,16 +1098,16 @@ pub fn finish(mut self) -&gt; BTreeSet&lt;u32&gt; {
             <path class="dg-edge" d="M180 222 H220"/>
             <path class="dg-edge dg-edge--call" d="M380 212 H420"/>
             <text x="400" y="206" font-size="11" text-anchor="middle" class="dg-acc">poll</text>
-            <path class="dg-edge dg-edge--loop" d="M420 234 H380"/>
-            <text x="400" y="268" font-size="11" text-anchor="middle" class="dg-grn">next event</text>
+            <path class="dg-edge dg-edge--loop" d="M420 234 H380 M400 234 V252"/>
+            <text x="400" y="264" font-size="11" text-anchor="middle" class="dg-grn">next event</text>
             <path class="dg-edge dg-edge--call" d="M580 222 H620"/>
-            <text x="600" y="268" font-size="11" text-anchor="middle" class="dg-yel">frame_done</text>
+            <text x="600" y="264" font-size="11" text-anchor="middle" class="dg-yel">frame_done</text>
 
             <path class="dg-edge dg-edge--unk" d="M260 248 V300 H100 V322"/>
             <text x="112" y="294" font-size="11" class="dg-yel">unknown pc</text>
             <rect class="dg-box dg-box--native" x="20" y="322" width="160" height="52" rx="4"/>
             <text x="34" y="344">M68k::step</text><text x="34" y="362" font-size="11" class="dg-dim">same CPU, fallback</text>
-            <path class="dg-edge" d="M700 248 V322"/>
+            <path class="dg-edge dg-edge--loop" d="M700 248 V322"/>
             <rect class="dg-box dg-box--ram" x="620" y="322" width="160" height="52" rx="4"/>
             <text x="634" y="344" class="dg-grn">M68k + RAM</text><text x="634" y="362" font-size="11" class="dg-dim">the whole state</text>
             <path class="dg-edge dg-edge--loop" d="M620 348 H580"/>
