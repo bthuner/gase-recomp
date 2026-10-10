@@ -16,9 +16,6 @@ use gase_recomp_runtime::{Cx, FlatMachine};
 include!("layout.rs");
 include!(concat!(env!("OUT_DIR"), "/cases.rs"));
 
-/// The machine the generated code runs on.
-pub type Machine = FlatMachine;
-
 #[allow(clippy::all, unused_parens)]
 mod recomp {
     include!(concat!(env!("OUT_DIR"), "/recomp.rs"));
@@ -95,8 +92,9 @@ pub fn run() -> (usize, Vec<String>) {
     let mut rng = Rng::new(SEED ^ 0xABCD);
     let ram: Vec<u8> = (0..0x1_0000).map(|_| rng.next() as u8).collect();
 
-    let mut cx = Cx::new(FlatMachine::default(), recomp::code());
-    cx.missing_log = None;
+    let mut flat = FlatMachine::default();
+    let mut ours = M68k::new();
+    ours.set_address_errors(false);
     let mut reference = FlatMachine::default();
     let mut cpu = M68k::new();
     cpu.set_address_errors(false);
@@ -135,7 +133,8 @@ pub fn run() -> (usize, Vec<String>) {
         let expected = snapshot(cpu.pc(), cpu.d, cpu.a, cpu.usp(), cpu.sr(), &reference);
 
         // the recompiled code
-        fresh(&mut cx.m, low, &ram);
+        fresh(&mut flat, low, &ram);
+        let mut cx = Cx::new(&mut ours, &mut flat, recomp::code());
         cx.s = true;
         cx.set_sr(0x2700);
         cx.d = d;
@@ -149,7 +148,9 @@ pub fn run() -> (usize, Vec<String>) {
             cx.missing.is_empty(),
             "case {entry:#X} fell back to the interpreter"
         );
-        let got = snapshot(cx.pc, cx.d, cx.a, cx.usp(), cx.sr(), &cx.m);
+        let (pc, d_out, a_out, usp, sr_out) = (cx.pc, cx.d, cx.a, cx.usp(), cx.sr());
+        drop(cx);
+        let got = snapshot(pc, d_out, a_out, usp, sr_out, &flat);
 
         compared += 1;
         if got != expected {

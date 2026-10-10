@@ -14,12 +14,11 @@ repository = "https://github.com/bthuner/gase-recomp"
 rust-version = "1.85"
 
 [workspace.dependencies]
-# The emulator we build on: every chip but the 68000 is reused as-is.
-gase-core  = { git = "https://github.com/bthuner/gase", rev = "c63957d4a020209b079230a565b1bce56c07e07b" }
-gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "c63957d4a020209b079230a565b1bce56c07e07b" }
-gase-z80   = { git = "https://github.com/bthuner/gase", rev = "c63957d4a020209b079230a565b1bce56c07e07b" }
-gase-vdp   = { git = "https://github.com/bthuner/gase", rev = "c63957d4a020209b079230a565b1bce56c07e07b" }
-gase-sound = { git = "https://github.com/bthuner/gase", rev = "c63957d4a020209b079230a565b1bce56c07e07b" }
+# The emulator we build on: every chip but the 68000 is reused as-is, and its
+# frontends run recompiled games. Keep this revision in sync with GASE_REV in
+# crates/recomp/src/project.rs (a test checks it).
+gase-core  = { git = "https://github.com/bthuner/gase", rev = "79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49" }
+gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49" }
 gase-recomp-runtime = { path = "crates/runtime" }
 gase-recomp = { path = "crates/recomp" }
 

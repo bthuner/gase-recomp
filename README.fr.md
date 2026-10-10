@@ -38,15 +38,23 @@ Prérequis : Rust 1.85+ ; pour une fenêtre, SDL2 (`apt install libsdl2-dev`,
 ```sh
 cargo run --release -p gase-recomp -- info   jeu.md
 cargo run --release -p gase-recomp -- recomp jeu.md -o build/jeu
-cd build/jeu && cargo run --release            # fenêtre (SDL2)
-cargo run --release -- --headless --frames 600 --ppm capture.ppm
+cd build/jeu && cargo run --release            # la fenêtre, les menus et les sauvegardes de gase
+cargo run --release -- --headless --frames 600 --screenshot capture.png
 ```
 
 Le dossier généré est un crate Cargo ordinaire : `src/recomp/` contient le
-code du jeu en Rust, `rom.bin` votre ROM. Le code que l'analyse n'a pas
-trouvé tourne sur l'interpréteur 68000 de gase : le jeu continue, et
-l'adresse est notée dans `gase_missing.txt` ; relancez `recomp` et elle
-devient du Rust à son tour.
+code du jeu en Rust, `rom.bin` votre ROM. Le programme **est gase**,
+l'émulateur, avec un processeur de plus : il enregistre le code recompilé
+pour le CRC-32 de sa ROM, puis lance l'interface de gase. Fenêtre, menus,
+sauvegardes d'état avec aperçus, retour arrière, manettes et réglages sont
+donc ceux de gase. Le code que l'analyse n'a pas trouvé tourne sur
+l'interpréteur 68000 de gase : le jeu continue, et l'adresse est notée dans
+`gase_missing.txt` ; relancez `recomp` et elle devient du Rust à son tour.
+
+Ordinateur (Linux, macOS, Windows) et mode sans fenêtre fonctionnent
+aujourd'hui. Android, iOS et le navigateur utilisent déjà la même coque
+gase ; il reste à leur ajouter un point d'entrée où un jeu enregistre son
+code (prochaine étape).
 
 ```sh
 cargo test --workspace     # décodeur, tests différentiels, bout en bout

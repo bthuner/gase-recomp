@@ -5,9 +5,6 @@
 
 include!("test_rom.rs");
 
-/// The console the generated code runs on.
-pub type Machine = gase_recomp_runtime::GenesisMachine;
-
 #[allow(clippy::all, unused_parens, unused_imports)]
 mod first_pass {
     include!(concat!(env!("OUT_DIR"), "/first_pass.rs"));
@@ -20,29 +17,33 @@ mod second_pass {
 
 #[cfg(test)]
 mod tests {
-    use gase_recomp_runtime::{Game, GameInfo};
+    use gase_core::{Cartridge, Config, Genesis};
+    use gase_recomp_runtime::{Code, Recompiled};
 
     use super::test_rom::*;
 
     const ROM: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rom.bin"));
 
-    fn play(code: gase_recomp_runtime::Code<super::Machine>, frames: u32) -> Game {
-        let info = GameInfo {
-            title: "test",
-            rom_crc32: gase_recomp_runtime::crc32(ROM),
-            rom_size: ROM.len(),
-            code,
-        };
-        let mut game = Game::new(&info, ROM, 44_100).unwrap();
-        game.cx.missing_log = None;
+    /// Play `frames` frames on a gase console driven by the recompiled
+    /// code, the way every gase frontend does; return the console and the
+    /// addresses the interpreter had to run (the `gase_missing.txt` lines).
+    fn play(code: Code, frames: u32, name: &str) -> (Genesis, Vec<String>) {
+        let log =
+            std::env::temp_dir().join(format!("gase-recomp-e2e-{name}-{}.txt", std::process::id()));
+        let _ = std::fs::remove_file(&log);
+        let cpu = Recompiled::new(code, "test").log_to(Some(log.to_string_lossy().into_owned()));
+        let mut console = Genesis::new(Cartridge::from_bytes(ROM).unwrap(), &Config::default());
+        console.set_external_cpu(Some(Box::new(cpu)));
         for _ in 0..frames {
-            game.run_frame();
+            console.run_frame();
         }
-        game
+        let missing = std::fs::read_to_string(&log).unwrap_or_default();
+        let _ = std::fs::remove_file(&log);
+        (console, missing.lines().map(str::to_string).collect())
     }
 
-    fn check(game: &Game, frames: u32) {
-        let ram = game.ram();
+    fn check(console: &Genesis, frames: u32) {
+        let ram = &console.hw.ram;
         let r = |a: u32| usize::try_from(a & 0xFFFF).unwrap();
         let count = u16::from_be_bytes([ram[r(FRAMES)], ram[r(FRAMES) + 1]]);
         let vblanks = u32::from_be_bytes(ram[r(VBLS)..r(VBLS) + 4].try_into().unwrap());
@@ -66,17 +67,11 @@ mod tests {
         assert_eq!(ram[r(ICALL)], count as u8, "indirect call");
         assert_eq!(ram[r(SCALL)], count as u8, "static call");
 
-        let (pixels, w, h, stride) = game.frame();
-        assert_eq!((w, h), (320, 224));
-        assert_eq!(
-            pixels[82 * stride + 10] & 0xFF_FFFF,
-            0xFF_0000,
-            "row 10: red tiles"
-        );
-        let checker = [
-            pixels[98 * stride + 10] & 0xFF_FFFF,
-            pixels[98 * stride + 11] & 0xFF_FFFF,
-        ];
+        let frame = console.frame();
+        assert_eq!((frame.width, frame.height), (320, 224));
+        let px = |x: usize, y: usize| frame.pixels[y * frame.stride + x] & 0xFF_FFFF;
+        assert_eq!(px(10, 82), 0xFF_0000, "row 10: red tiles");
+        let checker = [px(10, 98), px(11, 98)];
         assert!(
             checker.contains(&0x00_FF00) && checker.contains(&0x00_00FF),
             "row 12: green/blue checkerboard, got {checker:06X?}"
@@ -87,23 +82,48 @@ mod tests {
     /// interpreter runs it, the game keeps going, the address is recorded.
     #[test]
     fn unknown_code_runs_on_the_interpreter_and_is_recorded() {
-        let game = play(super::first_pass::code(), 120);
-        check(&game, 120);
-        assert_eq!(
-            game.cx.missing.iter().copied().collect::<Vec<_>>(),
-            [INDIRECT_SUB]
-        );
+        let (console, missing) = play(super::first_pass::code(), 120, "first");
+        check(&console, 120);
+        assert_eq!(missing, [format!("0x{INDIRECT_SUB:06X}")]);
     }
 
     /// Second pass, after the coverage feedback loop: everything recompiled.
     #[test]
     fn after_the_feedback_loop_everything_is_recompiled() {
-        let game = play(super::second_pass::code(), 120);
-        check(&game, 120);
-        assert!(
-            game.cx.missing.is_empty(),
-            "still interpreted: {:06X?}",
-            game.cx.missing
+        let (console, missing) = play(super::second_pass::code(), 120, "second");
+        check(&console, 120);
+        assert!(missing.is_empty(), "still interpreted: {missing:?}");
+    }
+
+    /// Same pictures and RAM as gase's own interpreter running the ROM.
+    #[test]
+    fn matches_the_interpreter_frame_for_frame() {
+        let (recompiled, _) = play(super::second_pass::code(), 60, "versus");
+        let mut interpreted = Genesis::new(Cartridge::from_bytes(ROM).unwrap(), &Config::default());
+        for _ in 0..60 {
+            interpreted.run_frame();
+        }
+        assert_eq!(
+            recompiled.frame().pixels,
+            interpreted.frame().pixels,
+            "picture"
         );
+        let r = |g: &Genesis| g.hw.ram[..0x20].to_vec();
+        assert_eq!(r(&recompiled), r(&interpreted), "game state in RAM");
+    }
+
+    /// Save states made while running recompiled code load back and agree.
+    #[test]
+    fn save_states_work_with_recompiled_code() {
+        let (mut a, _) = play(super::second_pass::code(), 30, "state");
+        let state = a.save_state();
+        let (mut b, _) = play(super::second_pass::code(), 1, "state2");
+        b.load_state(&state).unwrap();
+        for _ in 0..30 {
+            a.run_frame();
+            b.run_frame();
+        }
+        assert_eq!(a.hw.ram, b.hw.ram);
+        assert_eq!(a.frame().pixels, b.frame().pixels);
     }
 }

@@ -20,7 +20,6 @@
 //! differential test caught every place where we first got it wrong.
 
 use crate::cpu::Cx;
-use crate::machine::Machine;
 
 #[inline(always)]
 const fn mask(sz: u32) -> u32 {
@@ -54,7 +53,7 @@ pub const fn sext16(v: u32) -> u32 {
     v as u16 as i16 as i32 as u32
 }
 
-impl<M: Machine> Cx<M> {
+impl Cx<'_> {
     #[inline(always)]
     fn nz(&mut self, r: u32, sz: u32) {
         self.n = r & msb(sz) != 0;

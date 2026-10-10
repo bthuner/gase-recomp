@@ -3,21 +3,9 @@
 version = 4
 
 [[package]]
-name = "bitflags"
-version = "1.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
-
-[[package]]
-name = "cfg-if"
-version = "1.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
-
-[[package]]
 name = "gase-core"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=c63957d4a020209b079230a565b1bce56c07e07b#c63957d4a020209b079230a565b1bce56c07e07b"
+source = "git+https://github.com/bthuner/gase?rev=79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49#79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49"
 dependencies = [
  "gase-m68k",
  "gase-savestate",
@@ -30,7 +18,7 @@ dependencies = [
 [[package]]
 name = "gase-m68k"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=c63957d4a020209b079230a565b1bce56c07e07b#c63957d4a020209b079230a565b1bce56c07e07b"
+source = "git+https://github.com/bthuner/gase?rev=79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49#79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49"
 dependencies = [
  "gase-savestate",
 ]
@@ -55,6 +43,7 @@ dependencies = [
 name = "gase-recomp-e2e"
 version = "0.2.0"
 dependencies = [
+ "gase-core",
  "gase-recomp",
  "gase-recomp-runtime",
 ]
@@ -65,21 +54,17 @@ version = "0.2.0"
 dependencies = [
  "gase-core",
  "gase-m68k",
- "gase-sound",
- "gase-vdp",
- "gase-z80",
- "sdl2",
 ]
 
 [[package]]
 name = "gase-savestate"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=c63957d4a020209b079230a565b1bce56c07e07b#c63957d4a020209b079230a565b1bce56c07e07b"
+source = "git+https://github.com/bthuner/gase?rev=79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49#79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49"
 
 [[package]]
 name = "gase-sound"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=c63957d4a020209b079230a565b1bce56c07e07b#c63957d4a020209b079230a565b1bce56c07e07b"
+source = "git+https://github.com/bthuner/gase?rev=79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49#79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49"
 dependencies = [
  "gase-savestate",
 ]
@@ -87,7 +72,7 @@ dependencies = [
 [[package]]
 name = "gase-vdp"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=c63957d4a020209b079230a565b1bce56c07e07b#c63957d4a020209b079230a565b1bce56c07e07b"
+source = "git+https://github.com/bthuner/gase?rev=79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49#79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49"
 dependencies = [
  "gase-savestate",
 ]
@@ -95,7 +80,7 @@ dependencies = [
 [[package]]
 name = "gase-z80"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=c63957d4a020209b079230a565b1bce56c07e07b#c63957d4a020209b079230a565b1bce56c07e07b"
+source = "git+https://github.com/bthuner/gase?rev=79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49#79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49"
 dependencies = [
  "gase-savestate",
 ]
@@ -103,45 +88,4 @@ dependencies = [
 [[package]]
 name = "gase-zip"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=c63957d4a020209b079230a565b1bce56c07e07b#c63957d4a020209b079230a565b1bce56c07e07b"
-
-[[package]]
-name = "lazy_static"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20870f649af7073d53e38067b2a84312175d56ea15217e1b15bc83506ec50afb"
-
-[[package]]
-name = "libc"
-version = "0.2.190"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce5d3ddc6d3fa000eb1536d85e147bfe31aacaba692ed6a876f95cb7c855be78"
-
-[[package]]
-name = "sdl2"
-version = "0.37.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b498da7d14d1ad6c839729bd4ad6fc11d90a57583605f3b4df2cd709a9cd380"
-dependencies = [
- "bitflags",
- "lazy_static",
- "libc",
- "sdl2-sys",
-]
-
-[[package]]
-name = "sdl2-sys"
-version = "0.37.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "951deab27af08ed9c6068b7b0d05a93c91f0a8eb16b6b816a5e73452a43521d3"
-dependencies = [
- "cfg-if",
- "libc",
- "version-compare",
-]
-
-[[package]]
-name = "version-compare"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "579a42fc0b8e0c63b76519a339be31bed574929511fa53c1a3acae26eb258f29"
+source = "git+https://github.com/bthuner/gase?rev=79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49#79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49"
