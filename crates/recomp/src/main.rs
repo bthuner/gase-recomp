@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use gase_recomp::analysis::analyze;
+use gase_recomp::codegen::Options;
 use gase_recomp::project::{RuntimeSource, write_project};
 use gase_recomp::rom::{Rom, vector_name};
 
@@ -21,6 +22,7 @@ usage:
   gase-recomp info   ROM
   gase-recomp disasm ROM [--function HEX] [--entries FILE]
   gase-recomp recomp ROM -o DIR [--platform desktop|headless] [--entries FILE] [--runtime PATH]
+                     [--chunk N] [--max-block N]   code shape (see the making-of)
 ";
 
 /// Entry file: one hex address per line, optional name, `#` comments.
@@ -49,6 +51,7 @@ fn run(args: &[String]) -> Result<(), String> {
     let (mut out, mut platform, mut function, mut runtime) =
         (None, "desktop".to_string(), None, None);
     let mut entries = BTreeMap::new();
+    let mut opts = Options::default();
     let mut it = rest.iter();
     while let Some(a) = it.next() {
         let mut value = || it.next().cloned().ok_or(format!("{a} needs a value"));
@@ -63,6 +66,11 @@ fn run(args: &[String]) -> Result<(), String> {
             }
             "--entries" => parse_entries(Path::new(&value()?), &mut entries)?,
             "--runtime" => runtime = Some(PathBuf::from(value()?)),
+            // Code shape knobs (compile time vs. jumps between functions).
+            "--chunk" => opts.chunk = value()?.parse().map_err(|e| format!("--chunk: {e}"))?,
+            "--max-block" => {
+                opts.max_block = value()?.parse().map_err(|e| format!("--max-block: {e}"))?
+            }
             "-h" | "--help" => return Err(USAGE.into()),
             _ => rom_path = Some(a.clone()),
         }
@@ -152,7 +160,8 @@ fn run(args: &[String]) -> Result<(), String> {
                 RuntimeSource::Path(p.canonicalize().unwrap_or(p))
             });
             std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
-            let n = write_project(&program, &out, desktop, &runtime).map_err(|e| e.to_string())?;
+            let n = write_project(&program, &out, desktop, &runtime, &opts)
+                .map_err(|e| e.to_string())?;
             println!(
                 "[3/4] codegen   {n} Rust files in {}",
                 out.join("src/recomp").display()

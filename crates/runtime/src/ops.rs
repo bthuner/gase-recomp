@@ -136,6 +136,7 @@ impl<M: Machine> Cx<M> {
 
     // ---- shifts and rotates (cnt = 0..63) ------------------------------------
 
+    #[inline(never)] // rare and heavy: keep it out of every call site
     pub fn asl(&mut self, d: u32, cnt: u32, sz: u32) -> u32 {
         let (m, bits) = (mask(sz), sz * 8);
         let d = d & m;
@@ -225,6 +226,7 @@ impl<M: Machine> Cx<M> {
         r
     }
 
+    #[inline(never)] // rare and heavy: keep it out of every call site
     pub fn rol(&mut self, d: u32, cnt: u32, sz: u32) -> u32 {
         let (m, bits) = (mask(sz), sz * 8);
         let d = d & m;
@@ -240,6 +242,7 @@ impl<M: Machine> Cx<M> {
         r
     }
 
+    #[inline(never)] // rare and heavy: keep it out of every call site
     pub fn ror(&mut self, d: u32, cnt: u32, sz: u32) -> u32 {
         let (m, bits) = (mask(sz), sz * 8);
         let d = d & m;
@@ -256,6 +259,7 @@ impl<M: Machine> Cx<M> {
     }
 
     /// ROXL/ROXR rotate through X: a (bits + 1)-wide rotation.
+    #[inline(never)] // rare and heavy: keep it out of every call site
     pub fn roxl(&mut self, d: u32, cnt: u32, sz: u32) -> u32 {
         let (m, top) = (mask(sz), msb(sz));
         let (mut r, mut x) = (d & m, self.x);
@@ -271,6 +275,7 @@ impl<M: Machine> Cx<M> {
         r
     }
 
+    #[inline(never)] // rare and heavy: keep it out of every call site
     pub fn roxr(&mut self, d: u32, cnt: u32, sz: u32) -> u32 {
         let (m, top) = (mask(sz), msb(sz));
         let (mut r, mut x) = (d & m, self.x);
@@ -288,12 +293,14 @@ impl<M: Machine> Cx<M> {
 
     // ---- multiply / divide (16x16 -> 32, 32/16 -> 16:16) --------------------
 
+    #[inline(never)] // rare and heavy: keep it out of every call site
     pub fn mulu(&mut self, d: u32, s: u32) -> u32 {
         let r = (d & 0xFFFF) * (s & 0xFFFF);
         self.logic(r, 4);
         r
     }
 
+    #[inline(never)] // rare and heavy: keep it out of every call site
     pub fn muls(&mut self, d: u32, s: u32) -> u32 {
         let r = (i32::from(d as u16 as i16) * i32::from(s as u16 as i16)) as u32;
         self.logic(r, 4);
@@ -302,6 +309,7 @@ impl<M: Machine> Cx<M> {
 
     /// The divisor must not be zero (the caller raises the exception). On
     /// overflow the destination is unchanged and V is set.
+    #[inline(never)] // rare and heavy: keep it out of every call site
     pub fn divu(&mut self, d: u32, s: u32) -> u32 {
         let s = s & 0xFFFF;
         let (q, rem) = (d / s, d % s);
@@ -316,6 +324,7 @@ impl<M: Machine> Cx<M> {
         rem << 16 | q
     }
 
+    #[inline(never)] // rare and heavy: keep it out of every call site
     pub fn divs(&mut self, d: u32, s: u32) -> u32 {
         let (sd, ss) = (d as i32, i32::from(s as u16 as i16));
         let q = i64::from(sd) / i64::from(ss); // truncates toward zero, like the 68000
@@ -349,6 +358,7 @@ impl<M: Machine> Cx<M> {
         result
     }
 
+    #[inline(never)] // rare and heavy: keep it out of every call site
     pub fn abcd(&mut self, d: u32, s: u32) -> u32 {
         let (d, s) = (d & 0xFF, s & 0xFF);
         let binary = d + s + u32::from(self.x);
@@ -363,6 +373,7 @@ impl<M: Machine> Cx<M> {
         ))
     }
 
+    #[inline(never)] // rare and heavy: keep it out of every call site
     pub fn sbcd(&mut self, d: u32, s: u32) -> u32 {
         let (d, s) = (d & 0xFF, s & 0xFF);
         let binary = d.wrapping_sub(s).wrapping_sub(u32::from(self.x));
@@ -377,6 +388,7 @@ impl<M: Machine> Cx<M> {
     }
 
     /// NBCD: 0 - d - X, in decimal.
+    #[inline(never)] // rare and heavy: keep it out of every call site
     pub fn nbcd(&mut self, d: u32) -> u32 {
         self.sbcd(0, d)
     }

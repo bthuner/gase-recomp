@@ -74,6 +74,7 @@ pub fn write_project(
     out: &Path,
     desktop: bool,
     runtime: &RuntimeSource,
+    opts: &Options,
 ) -> io::Result<usize> {
     let id = identifier(program.rom.title());
     let title = program.rom.title();
@@ -82,7 +83,7 @@ pub fn write_project(
         fs::remove_dir_all(&gen_dir)?;
     }
     fs::create_dir_all(&gen_dir)?;
-    let files = generate(program, &Options::default());
+    let files = generate(program, opts);
     for (name, src) in &files {
         fs::write(gen_dir.join(name), src)?;
     }
@@ -98,7 +99,7 @@ pub fn write_project(
              [features]\ndefault = {default}\n# A desktop window (needs the SDL2 development package).\nsdl = [\"gase-recomp-runtime/sdl\"]\n\n\
              # Generated code is big: optimise dependencies, keep our own build fast.\n\
              [profile.dev]\nopt-level = 1\n\n[profile.dev.package.\"*\"]\nopt-level = 3\n\n\
-             [profile.release]\ncodegen-units = 16\n",
+             [profile.release]\ncodegen-units = 16\nlto = \"off\"\n",
             runtime.toml()
         ),
     )?;

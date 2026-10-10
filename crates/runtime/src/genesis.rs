@@ -249,59 +249,45 @@ impl GenesisMachine {
     }
 }
 
+// Memory accesses are inlined into every recompiled instruction, so only
+// the fast paths (work RAM, ROM) are: everything else goes through
+// out-of-line functions. This keeps the generated code small for LLVM,
+// which matters a lot for compile times (see the making-of).
 impl Bus for GenesisMachine {
-    #[inline]
+    #[inline(always)]
     fn read_byte(&mut self, addr: u32) -> u8 {
         if addr >= 0xE0_0000 {
             return self.hw.ram[(addr & 0xFFFF) as usize];
         }
-        if addr < 0x40_0000 {
-            return self.hw.read_byte(addr);
-        }
-        self.sync();
-        let v = self.hw.read_byte(addr);
-        self.charge_waits();
-        v
+        self.read_byte_slow(addr)
     }
 
-    #[inline]
+    #[inline(always)]
     fn read_word(&mut self, addr: u32) -> u16 {
         if addr >= 0xE0_0000 {
             let i = (addr & 0xFFFF) as usize;
             return u16::from_be_bytes([self.hw.ram[i], self.hw.ram[i + 1]]);
         }
-        if addr < 0x40_0000 {
-            return self.hw.read_word(addr);
-        }
-        self.sync();
-        let v = self.hw.read_word(addr);
-        self.charge_waits();
-        v
+        self.read_word_slow(addr)
     }
 
-    #[inline]
+    #[inline(always)]
     fn write_byte(&mut self, addr: u32, value: u8) {
         if addr >= 0xE0_0000 {
             self.hw.ram[(addr & 0xFFFF) as usize] = value;
             return;
         }
-        self.sync();
-        self.hw.write_byte(addr, value);
-        self.charge_waits();
-        self.dma_freeze();
+        self.write_slow(addr, u16::from(value), false);
     }
 
-    #[inline]
+    #[inline(always)]
     fn write_word(&mut self, addr: u32, value: u16) {
         if addr >= 0xE0_0000 {
             let i = (addr & 0xFFFF) as usize;
             self.hw.ram[i..i + 2].copy_from_slice(&value.to_be_bytes());
             return;
         }
-        self.sync();
-        self.hw.write_word(addr, value);
-        self.charge_waits();
-        self.dma_freeze();
+        self.write_slow(addr, value, true);
     }
 
     fn interrupt_acknowledge(&mut self, level: u8) -> Option<u8> {
@@ -317,6 +303,42 @@ impl Bus for GenesisMachine {
         if addr < 0xE0_0000 {
             self.write_byte(addr, value);
         }
+    }
+}
+
+impl GenesisMachine {
+    #[inline(never)]
+    fn read_byte_slow(&mut self, addr: u32) -> u8 {
+        if addr < 0x40_0000 {
+            return self.hw.read_byte(addr);
+        }
+        self.sync();
+        let v = self.hw.read_byte(addr);
+        self.charge_waits();
+        v
+    }
+
+    #[inline(never)]
+    fn read_word_slow(&mut self, addr: u32) -> u16 {
+        if addr < 0x40_0000 {
+            return self.hw.read_word(addr);
+        }
+        self.sync();
+        let v = self.hw.read_word(addr);
+        self.charge_waits();
+        v
+    }
+
+    #[inline(never)]
+    fn write_slow(&mut self, addr: u32, value: u16, word: bool) {
+        self.sync();
+        if word {
+            self.hw.write_word(addr, value);
+        } else {
+            self.hw.write_byte(addr, value as u8);
+        }
+        self.charge_waits();
+        self.dma_freeze();
     }
 }
 

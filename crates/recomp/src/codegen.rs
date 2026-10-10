@@ -173,10 +173,13 @@ impl Ea {
     }
 }
 
+const ALLOW: &str = "#[allow(non_snake_case, unused_mut, unused_variables, unused_assignments, unused_parens, unreachable_code, clippy::all)]\n";
+
 struct Emitter<'a> {
     program: &'a Program,
     f: &'a Function,
     blocks: BTreeSet<u32>,
+    opts: &'a Options,
 }
 
 impl<'a> Emitter<'a> {
@@ -215,6 +218,16 @@ impl<'a> Emitter<'a> {
                 b.insert(ins.next_addr());
             }
         }
+        // Cut long straight-line runs: LLVM's memory analyses get slow on
+        // huge blocks full of loads and stores (see the making-of).
+        let mut run = 0;
+        for &addr in &order {
+            run = if b.contains(&addr) { 1 } else { run + 1 };
+            if run > self.opts.max_block {
+                b.insert(addr);
+                run = 1;
+            }
+        }
         self.blocks = b.into_iter().filter(|a| self.in_fn(*a)).collect();
     }
 
@@ -249,30 +262,18 @@ impl<'a> Emitter<'a> {
         }
     }
 
-    fn emit(mut self) -> String {
-        self.find_blocks();
+    /// The `match` arms: one per block, with its number of instructions.
+    fn arms(&self) -> Vec<(u32, String, usize)> {
         let f = self.f;
-        let mut o = String::new();
-        let _ = writeln!(
-            o,
-            "/// `{}`: {} instructions.",
-            f.name,
-            f.instructions.len()
-        );
-        o.push_str("#[allow(non_snake_case, unused_mut, unused_variables, unused_assignments, unused_parens, unreachable_code, clippy::all)]\n");
-        let _ = writeln!(o, "pub fn {}(cx: &mut Cx) {{", fn_name(f.entry));
-        o.push_str("    let mut pc = cx.pc;\n    loop {\n        match pc {\n");
         let order: Vec<u32> = f.instructions.keys().copied().collect();
-        let mut open = false;
+        let mut arms: Vec<(u32, String, usize)> = Vec::new();
         for (i, &addr) in order.iter().enumerate() {
             let ins = &f.instructions[&addr];
-            if self.blocks.contains(&addr) {
-                if open {
-                    o.push_str("            }\n");
-                }
-                let _ = writeln!(o, "            {} => {{", hex(addr));
-                open = true;
+            if self.blocks.contains(&addr) || arms.is_empty() {
+                arms.push((addr, String::new(), 0));
             }
+            let (_, o, count) = arms.last_mut().unwrap();
+            *count += 1;
             let raw: Vec<String> = (0..ins.length / 2)
                 .filter_map(|k| self.program.rom.u16(addr + 2 * k))
                 .map(|w| format!("{w:04X}"))
@@ -306,9 +307,77 @@ impl<'a> Emitter<'a> {
                 }
             }
         }
-        o.push_str(
-            "            }\n            _ => { cx.pc = pc; return; }\n        }\n    }\n}\n",
+        arms
+    }
+
+    fn emit(mut self) -> String {
+        self.find_blocks();
+        let f = self.f;
+        let name = fn_name(f.entry);
+        let arms = self.arms();
+        let mut o = String::new();
+        let _ = writeln!(
+            o,
+            "/// `{}`: {} instructions.",
+            f.name,
+            f.instructions.len()
         );
+        o.push_str(ALLOW);
+        let _ = writeln!(o, "pub fn {name}(cx: &mut Cx) {{");
+        o.push_str("    let mut pc = cx.pc;\n    loop {\n");
+
+        // Group consecutive blocks into chunks of about CHUNK instructions.
+        let mut chunks: Vec<Vec<&(u32, String, usize)>> = vec![Vec::new()];
+        let mut size = 0;
+        for arm in &arms {
+            if size + arm.2 > self.opts.chunk && size > 0 {
+                chunks.push(Vec::new());
+                size = 0;
+            }
+            chunks.last_mut().unwrap().push(arm);
+            size += arm.2;
+        }
+
+        if chunks.len() == 1 {
+            // Small function: the blocks are the arms of a single `match`.
+            o.push_str("        match pc {\n");
+            for (addr, body, _) in &arms {
+                let _ = write!(
+                    o,
+                    "            {} => {{\n{body}            }}\n",
+                    hex(*addr)
+                );
+            }
+            o.push_str("            _ => { cx.pc = pc; return; }\n        }\n    }\n}\n");
+            return o;
+        }
+
+        // Big function: each chunk is its own Rust function (LLVM compiles
+        // many small functions much faster than one huge one). A chunk runs
+        // until control leaves it and returns the next address, or LEAVE when
+        // the 68000 function itself returns.
+        o.push_str("        pc = match pc {\n");
+        for (k, chunk) in chunks.iter().enumerate() {
+            let pats: Vec<String> = chunk.iter().map(|a| hex(a.0)).collect();
+            let _ = writeln!(o, "            {} => {name}_{k}(cx, pc),", pats.join(" | "));
+        }
+        o.push_str("            _ => { cx.pc = pc; return; }\n        };\n");
+        o.push_str("        if pc == LEAVE {\n            return;\n        }\n    }\n}\n");
+        for (k, chunk) in chunks.iter().enumerate() {
+            o.push_str(ALLOW);
+            o.push_str("#[inline(never)]\n");
+            let _ = writeln!(o, "fn {name}_{k}(cx: &mut Cx, mut pc: u32) -> u32 {{");
+            o.push_str("    loop {\n        match pc {\n");
+            for (addr, body, _) in chunk {
+                let body = body.replace("return;", "return LEAVE;");
+                let _ = write!(
+                    o,
+                    "            {} => {{\n{body}            }}\n",
+                    hex(*addr)
+                );
+            }
+            o.push_str("            _ => return pc,\n        }\n    }\n}\n");
+        }
         o
     }
 
@@ -850,13 +919,14 @@ impl<'a> Emitter<'a> {
 }
 
 /// All the blocks of the program: address -> function that runs it.
-fn block_table(program: &Program) -> BTreeMap<u32, u32> {
+fn block_table(program: &Program, opts: &Options) -> BTreeMap<u32, u32> {
     let mut table = BTreeMap::new();
     for f in program.functions.values() {
         let mut e = Emitter {
             program,
             f,
             blocks: BTreeSet::new(),
+            opts,
         };
         e.find_blocks();
         for b in e.blocks {
@@ -875,12 +945,18 @@ fn block_table(program: &Program) -> BTreeMap<u32, u32> {
 pub struct Options {
     /// Functions per source file (smaller files compile in parallel).
     pub functions_per_file: usize,
+    /// Longest run of instructions in one block.
+    pub max_block: usize,
+    /// Instructions per chunk function, when a 68000 function is big.
+    pub chunk: usize,
 }
 
 impl Default for Options {
     fn default() -> Self {
         Self {
             functions_per_file: 200,
+            max_block: 24,
+            chunk: 48,
         }
     }
 }
@@ -897,7 +973,9 @@ pub fn generate(program: &Program, opts: &Options) -> BTreeMap<String, String> {
          //! Each function below is a 68000 routine translated to Rust.\n\n\
          #[allow(unused_imports)]\n\
          pub(crate) use gase_recomp_runtime::{{sext8, sext16}};\n\
-         pub(crate) type Cx = gase_recomp_runtime::Cx<crate::Machine>;\n\n\
+         pub(crate) type Cx = gase_recomp_runtime::Cx<crate::Machine>;\n\
+         /// What a chunk returns when its 68000 function returns.\n\
+         pub(crate) const LEAVE: u32 = u32::MAX;\n\n\
          /// CRC-32 and size of the ROM this code was recompiled from.\n\
          pub const ROM_CRC32: u32 = 0x{:08X};\n\
          pub const ROM_SIZE: usize = {};\n\
@@ -916,6 +994,7 @@ pub fn generate(program: &Program, opts: &Options) -> BTreeMap<String, String> {
                     program,
                     f: &program.functions[a],
                     blocks: BTreeSet::new(),
+                    opts,
                 }
                 .emit(),
             );
@@ -926,7 +1005,7 @@ pub fn generate(program: &Program, opts: &Options) -> BTreeMap<String, String> {
     }
 
     // The dispatcher: every block of every function.
-    let table = block_table(program);
+    let table = block_table(program, opts);
     let mut by_fn: BTreeMap<u32, Vec<u32>> = BTreeMap::new();
     for (b, f) in &table {
         by_fn.entry(*f).or_default().push(*b);
@@ -954,11 +1033,12 @@ pub fn generate(program: &Program, opts: &Options) -> BTreeMap<String, String> {
 
 /// The same, as one file (for `include!`, used by tests).
 #[must_use]
-pub fn generate_single(program: &Program) -> String {
+pub fn generate_single(program: &Program, opts: &Options) -> String {
     let files = generate(
         program,
         &Options {
             functions_per_file: usize::MAX,
+            ..opts.clone()
         },
     );
     let mut out = files["mod.rs"].replace("mod part_000;\npub use part_000::*;\n", "");

@@ -9,7 +9,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use gase_recomp::analysis::analyze;
-use gase_recomp::codegen::generate_single;
+use gase_recomp::codegen::{Options, generate_single};
 use gase_recomp::m68k::{Flow, Mode, decode};
 use gase_recomp::rom::Rom;
 
@@ -98,7 +98,14 @@ fn main() {
     let program = analyze(&rom, &entries);
     let out = PathBuf::from(env::var("OUT_DIR").unwrap());
     fs::write(out.join("low.bin"), &low).unwrap();
-    fs::write(out.join("recomp.rs"), generate_single(&program)).unwrap();
+    // Tiny blocks and chunks, so that every snippet also exercises the
+    // chunked form used for big functions.
+    let opts = Options {
+        max_block: 1,
+        chunk: 2,
+        ..Options::default()
+    };
+    fs::write(out.join("recomp.rs"), generate_single(&program, &opts)).unwrap();
     let list: Vec<String> = entries.keys().map(|a| format!("0x{a:X}")).collect();
     fs::write(
         out.join("cases.rs"),

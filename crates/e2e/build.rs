@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use gase_recomp::analysis::analyze;
-use gase_recomp::codegen::generate_single;
+use gase_recomp::codegen::{Options, generate_single};
 use gase_recomp::rom::Rom;
 
 include!("src/test_rom.rs");
@@ -19,8 +19,16 @@ fn main() {
     let rom = Rom::from_bytes(&raw).unwrap();
     std::fs::write(out.join("rom.bin"), &raw).unwrap();
     let first = analyze(&rom, &BTreeMap::new());
-    std::fs::write(out.join("first_pass.rs"), generate_single(&first)).unwrap();
+    std::fs::write(
+        out.join("first_pass.rs"),
+        generate_single(&first, &Options::default()),
+    )
+    .unwrap();
     let found = BTreeMap::from([(test_rom::INDIRECT_SUB, "found_at_run_time".to_string())]);
     let second = analyze(&rom, &found);
-    std::fs::write(out.join("second_pass.rs"), generate_single(&second)).unwrap();
+    std::fs::write(
+        out.join("second_pass.rs"),
+        generate_single(&second, &Options::default()),
+    )
+    .unwrap();
 }
