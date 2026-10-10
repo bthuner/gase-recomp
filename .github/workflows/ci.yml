@@ -51,5 +51,5 @@ jobs:
           python -m gase recomp test.bin --platform desktop -o out/desktop
           cmake -S out/desktop -B out/headless -DGASE_HEADLESS=ON
           cmake --build out/headless --config Release
-          exe=$(find out/headless -name 'game_headless*' -type f | head -1)
+          exe=$(find out/headless -type f \( -name game_headless -o -name game_headless.exe \) | head -1)
           "$exe" out/desktop/assets/rom.bin 60 frame.ppm
