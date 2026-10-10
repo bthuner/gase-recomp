@@ -1,0 +1,38 @@
+# gase-recomp, Rust edition: the generator and the runtime.
+# The C/Python version (gase/, runtime/) stays in the repository as a
+# teaching reference; see docs/ (the making-of) for how the two compare.
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2024"
+license = "MIT"
+authors = ["Théo Hunerblaes"]
+repository = "https://github.com/bthuner/gase-recomp"
+rust-version = "1.85"
+
+[workspace.dependencies]
+# The emulator we build on: every chip but the 68000 is reused as-is.
+gase-core  = { git = "https://github.com/bthuner/gase", rev = "c63957d4a020209b079230a565b1bce56c07e07b" }
+gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "c63957d4a020209b079230a565b1bce56c07e07b" }
+gase-z80   = { git = "https://github.com/bthuner/gase", rev = "c63957d4a020209b079230a565b1bce56c07e07b" }
+gase-vdp   = { git = "https://github.com/bthuner/gase", rev = "c63957d4a020209b079230a565b1bce56c07e07b" }
+gase-sound = { git = "https://github.com/bthuner/gase", rev = "c63957d4a020209b079230a565b1bce56c07e07b" }
+gase-recomp-runtime = { path = "crates/runtime" }
+gase-recomp = { path = "crates/recomp" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+codegen-units = 16

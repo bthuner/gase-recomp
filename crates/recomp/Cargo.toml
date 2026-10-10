@@ -1,0 +1,19 @@
+[package]
+name = "gase-recomp"
+description = "Static recompiler: Mega Drive ROM -> Rust crate"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "gase-recomp"
+path = "src/main.rs"
+
+[dependencies]
+
+[dev-dependencies]
+gase-m68k.workspace = true
+
+[lints]
+workspace = true

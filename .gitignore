@@ -11,3 +11,4 @@ gase_missing.txt
 *.bin
 *.gen
 *.smd
+/target/
