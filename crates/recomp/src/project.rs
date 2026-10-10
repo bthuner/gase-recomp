@@ -133,6 +133,15 @@ use std::process::ExitCode;
 fn main() -> ExitCode {
     gase_recomp_runtime::register(recomp::ROM_CRC32, recomp::cpu);
     let mut args: Vec<String> = std::env::args().skip(1).collect();
+    // A word that is neither an option, an option's value nor a file is
+    // a typo, usually `cargo run release` for `cargo run --release`.
+    if let Some(word) = stray_word(&args) {
+        eprintln!("error: `{word}` is not a ROM file");
+        if word == "release" {
+            eprintln!("hint: build in release mode with `cargo run --release`");
+        }
+        return ExitCode::FAILURE;
+    }
     // No ROM on the command line: open the one shipped next to the game.
     if !args.iter().any(|a| Path::new(a).is_file()) {
         if let Some(rom) = default_rom() {
@@ -140,6 +149,16 @@ fn main() -> ExitCode {
         }
     }
     gase::run_command_line(args)
+}
+
+/// The first argument that does not start with `-`, does not follow an
+/// option (`--frames 600`) and is not an existing file.
+fn stray_word(args: &[String]) -> Option<&str> {
+    args.iter().enumerate().find_map(|(i, a)| {
+        let after_option = i > 0 && args[i - 1].starts_with('-');
+        let stray = !a.starts_with('-') && !after_option && !Path::new(a).exists();
+        stray.then_some(a.as_str())
+    })
 }
 
 /// `rom.bin` in the current folder, or next to the program.
