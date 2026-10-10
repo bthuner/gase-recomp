@@ -1,20 +1,28 @@
 //! What the recompiled CPU needs from the rest of the console.
 //!
 //! Recompiled code replaces the 68000, nothing else. Everything around it
-//! (memory map, video, sound, Z80, pads) is a [`Machine`]: the real one is
-//! [`GenesisMachine`](crate::GenesisMachine), built on the gase emulator's
-//! chips; tests use [`FlatMachine`](crate::FlatMachine), 16 MiB of RAM.
+//! (memory map, video, sound, Z80, pads) is a [`Machine`]: on a real game,
+//! gase's own console seen through
+//! [`External`](gase_core::system::external::External), the inverted
+//! scheduler gase provides for external CPUs; in tests, [`FlatMachine`],
+//! 16 MiB of RAM.
 //!
-//! The machine sees the 68000 through [`gase_m68k::Bus`], exactly like the
-//! gase interpreter does, so both CPUs can share it (which is how the
-//! interpreter fallback works).
+//! The machine also sees the 68000 through [`gase_m68k::Bus`], exactly
+//! like gase's interpreter does, so both CPUs can share it: that is how
+//! the interpreter fallback works.
 
+use gase_core::system::external::External;
 use gase_m68k::Bus;
 
 /// The console around the recompiled 68000.
 pub trait Machine: Bus {
-    /// The 68000's clock, in CPU cycles, before a memory access: the VDP's
-    /// FIFO and the sound chips need to know *when* an access happens.
+    /// The 68000's clock, in CPU cycles since power-on.
+    fn cycles(&self) -> u64 {
+        0
+    }
+
+    /// The 68000's clock before a memory access: the VDP's FIFO and the
+    /// sound chips need to know *when* an access happens.
     fn set_clock(&mut self, cycles: u64);
 
     /// Run every other chip up to `cycles` (scanlines, Z80, sound) and
@@ -23,18 +31,41 @@ pub trait Machine: Bus {
 
     /// The CPU clock once the waits imposed by the hardware are counted
     /// (VDP FIFO full, Z80 bus arbitration, a 68000-to-VDP DMA freeze).
-    fn stalled_clock(&mut self, cycles: u64) -> u64 {
+    fn stalled_clock(&self, cycles: u64) -> u64 {
         cycles
     }
 
-    /// Did a frame just end? (Cleared by the call.)
-    fn take_frame_done(&mut self) -> bool {
+    /// Is the frame over? Then the CPU returns to its frontend.
+    fn frame_done(&self) -> bool {
         false
     }
 
     /// Highest interrupt level currently requested (0 = none).
-    fn irq_level(&mut self) -> u8 {
+    fn irq_level(&self) -> u8 {
         0
+    }
+}
+
+/// gase's console, as seen by an external CPU during one frame.
+impl Machine for External<'_> {
+    fn cycles(&self) -> u64 {
+        External::cycles(self)
+    }
+    #[inline]
+    fn set_clock(&mut self, cycles: u64) {
+        External::set_clock(self, cycles);
+    }
+    fn catch_up(&mut self, cycles: u64) -> u64 {
+        External::catch_up(self, cycles)
+    }
+    fn stalled_clock(&self, cycles: u64) -> u64 {
+        External::stalled_clock(self, cycles)
+    }
+    fn frame_done(&self) -> bool {
+        External::frame_done(self)
+    }
+    fn irq_level(&self) -> u8 {
+        self.interrupt_level()
     }
 }
 

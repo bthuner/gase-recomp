@@ -9,6 +9,7 @@ publish = false
 
 [dependencies]
 gase-recomp-runtime.workspace = true
+gase-core.workspace = true
 
 [build-dependencies]
 gase-recomp.workspace = true

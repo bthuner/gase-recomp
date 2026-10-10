@@ -19,7 +19,7 @@ jobs:
       - name: Install SDL2
         run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets --features gase-recomp-runtime/sdl -- -D warnings
+      - run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Decoder, differential and end-to-end tests
         run: cargo test --workspace
       - name: More differential seeds

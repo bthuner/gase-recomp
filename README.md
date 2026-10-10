@@ -37,22 +37,29 @@ Requirements: Rust 1.85+; for a desktop window, the SDL2 development package
 cargo run --release -p gase-recomp -- info   game.md
 cargo run --release -p gase-recomp -- disasm game.md | less
 cargo run --release -p gase-recomp -- recomp game.md -o build/game
-cd build/game && cargo run --release           # desktop window (SDL2)
-cargo run --release -- --headless --frames 600 --ppm shot.ppm
+cd build/game && cargo run --release           # gase's window, menus, save states
+cargo run --release -- --headless --frames 600 --screenshot shot.png
 ```
 
 The generated folder is an ordinary Cargo crate: `src/recomp/` is the
 game's code in Rust, `rom.bin` your ROM (graphics, sound and data are still
-read from it). Code the analysis missed runs on gase's 68000 interpreter, so
-the game keeps playing, and its address goes to `gase_missing.txt`; run
-`recomp` again and it becomes Rust too.
+read from it). The program **is gase**, the emulator, with one more CPU:
+it registers the recompiled code for its ROM's CRC-32, then runs gase's
+own frontend, so you get gase's window, menus, save states with previews,
+rewind, gamepads and settings. Code the analysis missed runs on gase's
+68000 interpreter, so the game keeps playing, and its address goes to
+`gase_missing.txt`; run `recomp` again and it becomes Rust too.
+
+Desktop (Linux, macOS, Windows) and headless work today. Android, iOS and
+the browser already run gase's same shell; their entry points still need a
+hook so a game crate can register its code (next step).
 
 | crate | what you learn there |
 |-------|----------------------|
 | [`crates/recomp`](crates/recomp/src/lib.rs) | ROM, 68000 decoder, analysis, Rust code generation (no `goto`: blocks as a state machine) |
-| [`crates/runtime`](crates/runtime/src/lib.rs) | the CPU context, flags, calls and poll points, an inverted scheduler on gase's chips, the interpreter fallback |
+| [`crates/runtime`](crates/runtime/src/lib.rs) | the CPU context, flags, calls and poll points, the interpreter fallback, and how a recompiled game plugs into gase (an `ExternalCpu`) |
 | [`crates/difftest`](crates/difftest/src/lib.rs) | differential testing against gase's hardware-validated 68000 interpreter |
-| [`crates/e2e`](crates/e2e/src/lib.rs) | a hand-assembled ROM, recompiled and played, before and after the feedback loop |
+| [`crates/e2e`](crates/e2e/src/lib.rs) | a hand-assembled ROM, recompiled and played on a gase console: feedback loop, same frames as the interpreter, save states |
 
 ```sh
 cargo test --workspace                       # decoder, differential and end-to-end tests

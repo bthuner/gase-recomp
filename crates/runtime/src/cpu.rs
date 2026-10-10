@@ -3,7 +3,7 @@
 //! Every recompiled function has the same shape:
 //!
 //! ```ignore
-//! pub fn f_000200(cx: &mut Cx) {
+//! pub fn f_000200(cx: &mut Cx<'_>) {
 //!     let mut pc = cx.pc;                 // which block to start with
 //!     loop {
 //!         match pc {
@@ -23,39 +23,64 @@
 //! the runtime unwind everything at the end of a frame and pick up again at
 //! the next one (see [`Cx::run_frame`]), which is how frontends drive the
 //! game one frame at a time.
+//!
+//! A `Cx` lives for one frame. It borrows the console (a [`Machine`]) and
+//! gase's 68000 interpreter, whose state is the CPU's state between frames:
+//! [`Cx::new`] loads the registers from it, [`Cx::finish`] stores them back.
 
 use std::collections::BTreeSet;
 use std::fmt;
 use std::fs::OpenOptions;
 use std::io::Write as _;
 
-use gase_m68k::M68k;
+use gase_m68k::{Bus, M68k};
 
 use crate::machine::Machine;
 
 /// What the generated crate provides to the runtime.
-pub struct Code<M: Machine> {
+#[derive(Clone, Copy)]
+pub struct Code {
     /// Run the recompiled code at `cx.pc`; `false` if there is none.
-    pub dispatch: fn(&mut Cx<M>) -> bool,
+    pub dispatch: for<'a> fn(&mut Cx<'a>) -> bool,
     /// Is `addr` the start of a recompiled block?
     pub is_block: fn(u32) -> bool,
 }
 
-impl<M: Machine> fmt::Debug for Code<M> {
+impl fmt::Debug for Code {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Code")
     }
 }
 
-impl<M: Machine> Clone for Code<M> {
-    fn clone(&self) -> Self {
-        *self
+/// The machine as a [`Bus`] for gase's interpreter (which wants a sized type).
+struct DynBus<'b>(&'b mut dyn Machine);
+
+impl Bus for DynBus<'_> {
+    fn read_byte(&mut self, addr: u32) -> u8 {
+        self.0.read_byte(addr)
+    }
+    fn read_word(&mut self, addr: u32) -> u16 {
+        self.0.read_word(addr)
+    }
+    fn write_byte(&mut self, addr: u32, value: u8) {
+        self.0.write_byte(addr, value);
+    }
+    fn write_word(&mut self, addr: u32, value: u16) {
+        self.0.write_word(addr, value);
+    }
+    fn interrupt_acknowledge(&mut self, level: u8) -> Option<u8> {
+        self.0.interrupt_acknowledge(level)
+    }
+    fn reset_devices(&mut self) {
+        self.0.reset_devices();
+    }
+    fn tas_write_byte(&mut self, addr: u32, value: u8) {
+        self.0.tas_write_byte(addr, value);
     }
 }
-impl<M: Machine> Copy for Code<M> {}
 
 /// The CPU context: the 68000's state plus the machine around it.
-pub struct Cx<M: Machine> {
+pub struct Cx<'a> {
     /// Data registers D0-D7.
     pub d: [u32; 8],
     /// Address registers A0-A7; `a[7]` is the active stack pointer.
@@ -82,16 +107,19 @@ pub struct Cx<M: Machine> {
     /// Set at the end of a frame: every function returns, up to run_frame.
     pub unwinding: bool,
 
-    pub m: M,
-    code: Code<M>,
-    interp: Option<Box<M68k>>,
+    /// The console around the CPU (memory map, scheduler, interrupts).
+    pub m: &'a mut dyn Machine,
+    /// gase's interpreter: the CPU state between frames, and the fallback
+    /// for code that was not recompiled.
+    cpu: &'a mut M68k,
+    code: Code,
     /// Addresses the interpreter had to run (the coverage feedback loop).
     pub missing: BTreeSet<u32>,
     /// Where to append newly found addresses (None = don't write a file).
     pub missing_log: Option<String>,
 }
 
-impl<M: Machine> fmt::Debug for Cx<M> {
+impl fmt::Debug for Cx<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -104,18 +132,16 @@ impl<M: Machine> fmt::Debug for Cx<M> {
     }
 }
 
-impl<M: Machine> Cx<M> {
-    /// Power on: supervisor mode, interrupts masked, SSP and PC from the
-    /// first two vectors.
-    pub fn new(mut m: M, code: Code<M>) -> Self {
-        let ssp = u32::from(m.read_word(0)) << 16 | u32::from(m.read_word(2));
-        let pc = u32::from(m.read_word(4)) << 16 | u32::from(m.read_word(6));
-        let next_event = m.catch_up(0);
-        Self {
-            d: [0; 8],
-            a: [0, 0, 0, 0, 0, 0, 0, ssp],
+impl<'a> Cx<'a> {
+    /// Start a frame: load the CPU state from `cpu`.
+    pub fn new(cpu: &'a mut M68k, m: &'a mut dyn Machine, code: Code) -> Self {
+        let cycles = m.cycles();
+        let next_event = m.catch_up(cycles);
+        let mut cx = Self {
+            d: cpu.d,
+            a: cpu.a,
             inactive_sp: 0,
-            pc,
+            pc: cpu.pc() & 0xFF_FFFF,
             x: false,
             n: false,
             z: false,
@@ -124,16 +150,26 @@ impl<M: Machine> Cx<M> {
             s: true,
             t: false,
             imask: 7,
-            stopped: false,
-            cycles: 0,
+            stopped: cpu.is_stopped(),
+            cycles,
             next_event,
             unwinding: false,
             m,
+            cpu,
             code,
-            interp: None,
             missing: BTreeSet::new(),
-            missing_log: Some("gase_missing.txt".into()),
-        }
+            missing_log: None,
+        };
+        cx.load_registers();
+        cx
+    }
+
+    /// End the frame: store the CPU state back into the interpreter.
+    pub fn finish(mut self) -> BTreeSet<u32> {
+        self.store_registers();
+        let pc = self.pc;
+        self.cpu.set_pc(&mut DynBus(&mut *self.m), pc);
+        self.missing
     }
 
     // ---- status register --------------------------------------------------
@@ -343,7 +379,7 @@ impl<M: Machine> Cx<M> {
     fn events(&mut self, resume: u32) -> bool {
         self.cycles = self.m.stalled_clock(self.cycles);
         self.next_event = self.m.catch_up(self.cycles);
-        if self.m.take_frame_done() {
+        if self.m.frame_done() {
             self.pc = resume;
             self.unwinding = true;
             return false;
@@ -428,58 +464,58 @@ impl<M: Machine> Cx<M> {
                 }
             }
         }
-        let mut cpu = self.interp.take().unwrap_or_else(|| {
-            let mut c = Box::new(M68k::new());
-            c.set_address_errors(false);
-            c
-        });
-        self.store_to(&mut cpu);
+        self.store_registers();
         self.m.set_clock(self.cycles);
-        cpu.set_pc(&mut self.m, start);
+        self.cpu.set_pc(&mut DynBus(&mut *self.m), start);
         loop {
-            cpu.set_interrupt_level(self.m.irq_level());
+            self.cpu.set_interrupt_level(self.m.irq_level());
             self.m.set_clock(self.cycles);
-            self.cycles += u64::from(cpu.step(&mut self.m));
+            self.cycles += u64::from(self.cpu.step(&mut DynBus(&mut *self.m)));
             if self.cycles >= self.next_event {
                 self.cycles = self.m.stalled_clock(self.cycles);
                 self.next_event = self.m.catch_up(self.cycles);
-                if self.m.take_frame_done() {
+                if self.m.frame_done() {
                     self.unwinding = true;
                     break;
                 }
             }
             assert!(
-                !cpu.is_halted(),
+                !self.cpu.is_halted(),
                 "68000 halted (double fault) at ${:06X}",
-                cpu.pc()
+                self.cpu.pc()
             );
-            if (self.code.is_block)(cpu.pc()) {
+            if (self.code.is_block)(self.cpu.pc() & 0xFF_FFFF) {
                 break;
             }
         }
-        self.load_from(&cpu);
-        self.interp = Some(cpu);
+        self.load_registers();
     }
 
-    fn store_to(&self, cpu: &mut M68k) {
-        cpu.set_sr(self.sr());
-        cpu.d = self.d;
-        cpu.a = self.a;
+    /// Copy our registers into the interpreter.
+    fn store_registers(&mut self) {
+        self.cpu.set_sr(self.sr());
+        self.cpu.d = self.d;
+        self.cpu.a = self.a;
         if self.s {
-            cpu.set_usp(self.inactive_sp)
+            self.cpu.set_usp(self.inactive_sp);
         } else {
-            cpu.set_ssp(self.inactive_sp)
+            self.cpu.set_ssp(self.inactive_sp);
         }
     }
 
-    fn load_from(&mut self, cpu: &M68k) {
-        let sr = cpu.sr();
+    /// Copy the interpreter's registers into ours.
+    fn load_registers(&mut self) {
+        let sr = self.cpu.sr();
         self.s = sr & 0x2000 != 0;
         self.set_sr(u32::from(sr));
-        self.d = cpu.d;
-        self.a = cpu.a;
-        self.inactive_sp = if self.s { cpu.usp() } else { cpu.ssp() };
-        self.stopped = cpu.is_stopped();
-        self.pc = cpu.pc() & 0xFF_FFFF;
+        self.d = self.cpu.d;
+        self.a = self.cpu.a;
+        self.inactive_sp = if self.s {
+            self.cpu.usp()
+        } else {
+            self.cpu.ssp()
+        };
+        self.stopped = self.cpu.is_stopped();
+        self.pc = self.cpu.pc() & 0xFF_FFFF;
     }
 }
