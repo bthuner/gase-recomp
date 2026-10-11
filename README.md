@@ -33,6 +33,11 @@ the pipeline. The making-of explains it chapter by chapter:
 Requirements: Rust 1.85+; for a desktop window, the SDL2 development package
 (`apt install libsdl2-dev`, `brew install sdl2`).
 
+Ready-made programs (`gase-recomp`, `gase-recomp-studio`, `gase-jit`, for
+Linux and macOS) and the "gase JIT" Android app are attached to each
+[release](https://github.com/bthuner/gase-recomp/releases). Recompiling a
+game still compiles Rust, so Rust is needed either way.
+
 ```sh
 cargo run --release -p gase-recomp -- info   game.md
 cargo run --release -p gase-recomp -- disasm game.md | less

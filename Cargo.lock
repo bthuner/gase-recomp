@@ -504,6 +504,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cmake"
+version = "0.1.58"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0f78a02292a74a88ac736019ab962ece0bc380e3f977bf72e376c5d78ff0678"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "codespan-reporting"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1059,8 +1068,8 @@ dependencies = [
 
 [[package]]
 name = "gase"
-version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
+version = "0.3.0"
+source = "git+https://github.com/bthuner/gase?rev=0cf61ff8bb7a55a57b5473845720403489b5e780#0cf61ff8bb7a55a57b5473845720403489b5e780"
 dependencies = [
  "gase-app",
  "gase-core",
@@ -1069,16 +1078,16 @@ dependencies = [
 
 [[package]]
 name = "gase-app"
-version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
+version = "0.3.0"
+source = "git+https://github.com/bthuner/gase?rev=0cf61ff8bb7a55a57b5473845720403489b5e780#0cf61ff8bb7a55a57b5473845720403489b5e780"
 dependencies = [
  "gase-core",
 ]
 
 [[package]]
 name = "gase-core"
-version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
+version = "0.3.0"
+source = "git+https://github.com/bthuner/gase?rev=0cf61ff8bb7a55a57b5473845720403489b5e780#0cf61ff8bb7a55a57b5473845720403489b5e780"
 dependencies = [
  "gase-m68k",
  "gase-savestate",
@@ -1090,16 +1099,16 @@ dependencies = [
 
 [[package]]
 name = "gase-m68k"
-version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
+version = "0.3.0"
+source = "git+https://github.com/bthuner/gase?rev=0cf61ff8bb7a55a57b5473845720403489b5e780#0cf61ff8bb7a55a57b5473845720403489b5e780"
 dependencies = [
  "gase-savestate",
 ]
 
 [[package]]
 name = "gase-mobile"
-version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
+version = "0.3.0"
+source = "git+https://github.com/bthuner/gase?rev=0cf61ff8bb7a55a57b5473845720403489b5e780#0cf61ff8bb7a55a57b5473845720403489b5e780"
 dependencies = [
  "gase",
  "sdl2",
@@ -1151,6 +1160,7 @@ dependencies = [
  "gase-mobile",
  "gase-recomp-jit",
  "gase-recomp-remote",
+ "sdl2",
 ]
 
 [[package]]
@@ -1177,37 +1187,37 @@ dependencies = [
 
 [[package]]
 name = "gase-savestate"
-version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
+version = "0.3.0"
+source = "git+https://github.com/bthuner/gase?rev=0cf61ff8bb7a55a57b5473845720403489b5e780#0cf61ff8bb7a55a57b5473845720403489b5e780"
 
 [[package]]
 name = "gase-sound"
-version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
+version = "0.3.0"
+source = "git+https://github.com/bthuner/gase?rev=0cf61ff8bb7a55a57b5473845720403489b5e780#0cf61ff8bb7a55a57b5473845720403489b5e780"
 dependencies = [
  "gase-savestate",
 ]
 
 [[package]]
 name = "gase-vdp"
-version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
+version = "0.3.0"
+source = "git+https://github.com/bthuner/gase?rev=0cf61ff8bb7a55a57b5473845720403489b5e780#0cf61ff8bb7a55a57b5473845720403489b5e780"
 dependencies = [
  "gase-savestate",
 ]
 
 [[package]]
 name = "gase-z80"
-version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
+version = "0.3.0"
+source = "git+https://github.com/bthuner/gase?rev=0cf61ff8bb7a55a57b5473845720403489b5e780#0cf61ff8bb7a55a57b5473845720403489b5e780"
 dependencies = [
  "gase-savestate",
 ]
 
 [[package]]
 name = "gase-zip"
-version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
+version = "0.3.0"
+source = "git+https://github.com/bthuner/gase?rev=0cf61ff8bb7a55a57b5473845720403489b5e780#0cf61ff8bb7a55a57b5473845720403489b5e780"
 
 [[package]]
 name = "gethostname"
@@ -2630,6 +2640,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "951deab27af08ed9c6068b7b0d05a93c91f0a8eb16b6b816a5e73452a43521d3"
 dependencies = [
  "cfg-if",
+ "cmake",
  "libc",
  "version-compare",
 ]

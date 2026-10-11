@@ -20,6 +20,7 @@ gase-recomp: statically recompile a Sega Mega Drive / Genesis ROM to Rust
 
 usage:
   gase-recomp info   ROM
+  gase-recomp --version
   gase-recomp disasm ROM [--function HEX] [--entries FILE]
   gase-recomp recomp ROM -o DIR [--platform desktop|android|ios|headless] [--entries FILE] [--runtime PATH]
                      [--chunk N] [--max-block N]   code shape (see the making-of)
@@ -27,6 +28,10 @@ usage:
 
 fn run(args: &[String]) -> Result<(), String> {
     let (cmd, rest) = args.split_first().ok_or(USAGE)?;
+    if matches!(cmd.as_str(), "--version" | "-V") {
+        println!("gase-recomp {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
     let mut rom_path = None;
     let (mut out, mut platform, mut function, mut runtime) =
         (None, "desktop".to_string(), None, None);
