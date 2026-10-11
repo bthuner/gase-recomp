@@ -27,7 +27,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use crate::m68k::{DecodeError, Flow, Instruction, Mode, decode};
+use crate::m68k::{DecodeError, Flow, Instruction, Mode, decode, timing};
 use crate::rom::{Rom, vector_name};
 
 const MAX_FUNCTION_INSTRUCTIONS: usize = 20_000;
@@ -86,7 +86,12 @@ impl<'a> Analyzer<'a> {
         let rom = self.rom;
         self.cache
             .entry(addr)
-            .or_insert_with(|| decode(|a| rom.u16(a & 0xFF_FFFF), addr))
+            .or_insert_with(|| {
+                let read = |a: u32| rom.u16(a & 0xFF_FFFF);
+                let mut ins = decode(read, addr)?;
+                timing::measure(&mut ins, read);
+                Ok(ins)
+            })
             .clone()
     }
 

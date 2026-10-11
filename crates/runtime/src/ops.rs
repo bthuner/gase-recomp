@@ -291,9 +291,15 @@ impl Cx<'_> {
     }
 
     // ---- multiply / divide (16x16 -> 32, 32/16 -> 16:16) --------------------
+    //
+    // Their duration depends on the operands, so they add it here; the
+    // generated code only counts the fixed part (see the generator's
+    // `m68k/timing.rs`). Formulas from gase's 68000, itself checked
+    // against the hardware.
 
     #[inline(never)] // rare and heavy: keep it out of every call site
     pub fn mulu(&mut self, d: u32, s: u32) -> u32 {
+        self.cycles += u64::from(2 * (s & 0xFFFF).count_ones());
         let r = (d & 0xFFFF) * (s & 0xFFFF);
         self.logic(r, 4);
         r
@@ -301,6 +307,9 @@ impl Cx<'_> {
 
     #[inline(never)] // rare and heavy: keep it out of every call site
     pub fn muls(&mut self, d: u32, s: u32) -> u32 {
+        // One step per pair of differing bits in (multiplier << 1).
+        let booth = ((s & 0xFFFF) << 1) ^ ((s & 0xFFFF) << 2);
+        self.cycles += u64::from(2 * (booth & 0x1_FFFE).count_ones());
         let r = (i32::from(d as u16 as i16) * i32::from(s as u16 as i16)) as u32;
         self.logic(r, 4);
         r
@@ -311,6 +320,7 @@ impl Cx<'_> {
     #[inline(never)] // rare and heavy: keep it out of every call site
     pub fn divu(&mut self, d: u32, s: u32) -> u32 {
         let s = s & 0xFFFF;
+        self.cycles += u64::from(divu_cycles(d, s as u16));
         let (q, rem) = (d / s, d % s);
         if q > 0xFFFF {
             self.v = true;
@@ -326,6 +336,7 @@ impl Cx<'_> {
     #[inline(never)] // rare and heavy: keep it out of every call site
     pub fn divs(&mut self, d: u32, s: u32) -> u32 {
         let (sd, ss) = (d as i32, i32::from(s as u16 as i16));
+        self.cycles += u64::from(divs_cycles(sd, ss as i16));
         let q = i64::from(sd) / i64::from(ss); // truncates toward zero, like the 68000
         let rem = i64::from(sd) % i64::from(ss);
         if !(-32768..=32767).contains(&q) {
@@ -416,4 +427,60 @@ impl Cx<'_> {
             _ => self.z || self.n != self.v,
         }
     }
+}
+
+/// Cycles of `DIVU` after its operand fetch: the 68000 divides one bit
+/// per step, and a step is shorter when it subtracts.
+fn divu_cycles(dividend: u32, divisor: u16) -> u32 {
+    let divisor = u32::from(divisor);
+    if dividend >> 16 >= divisor {
+        return 10; // overflow, detected up front
+    }
+    let mut micro_cycles = 38;
+    let shifted_divisor = divisor << 16;
+    let mut dividend = dividend;
+    for _ in 0..15 {
+        let top_bit_set = dividend & 0x8000_0000 != 0;
+        dividend <<= 1;
+        if top_bit_set {
+            dividend = dividend.wrapping_sub(shifted_divisor);
+        } else {
+            micro_cycles += 2;
+            if dividend >= shifted_divisor {
+                dividend -= shifted_divisor;
+                micro_cycles -= 1;
+            }
+        }
+    }
+    micro_cycles * 2
+}
+
+/// Cycles of `DIVS` after its operand fetch.
+fn divs_cycles(dividend: i32, divisor: i16) -> u32 {
+    let mut micro_cycles = 6;
+    if dividend < 0 {
+        micro_cycles += 1;
+    }
+    let abs_dividend = dividend.unsigned_abs();
+    let abs_divisor = u32::from(divisor.unsigned_abs());
+    if abs_dividend >> 16 >= abs_divisor {
+        return (micro_cycles + 2) * 2;
+    }
+    let mut quotient = abs_dividend / abs_divisor;
+    micro_cycles += 55;
+    if divisor >= 0 {
+        if dividend >= 0 {
+            micro_cycles -= 1;
+        } else {
+            micro_cycles += 1;
+        }
+    }
+    // One more for each of the top 15 quotient bits that is 0.
+    for _ in 0..15 {
+        if quotient & 0x8000 == 0 {
+            micro_cycles += 1;
+        }
+        quotient <<= 1;
+    }
+    micro_cycles * 2
 }

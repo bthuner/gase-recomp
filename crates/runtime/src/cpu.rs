@@ -100,7 +100,8 @@ pub struct Cx<'a> {
     pub t: bool,
     pub imask: u8,
     pub stopped: bool,
-    /// 68000 cycles since power-on (an estimate, see the decoder).
+    /// 68000 cycles since power-on (timings measured on gase's 68000, see
+    /// the generator's `m68k/timing.rs`).
     pub cycles: u64,
     /// When the machine next needs attention.
     pub next_event: u64,
@@ -417,7 +418,9 @@ impl<'a> Cx<'a> {
         }
         self.push32(resume);
         self.push16(sr);
-        self.cycles += 34;
+        // Stacking and vector fetch; an interrupt also runs an acknowledge
+        // cycle. (The generated code counts the instruction itself.)
+        self.cycles += if level.is_some() { 44 } else { 34 };
         self.pc = self.r32(vector * 4) & 0xFF_FFFF;
         self.dispatch();
         self.returned(resume, sp)
