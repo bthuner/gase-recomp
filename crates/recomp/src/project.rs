@@ -297,7 +297,7 @@ git clone https://github.com/bthuner/gase && git -C gase checkout @GASE_REV@
 **Android** (Android SDK + NDK 27, `rustup target add aarch64-linux-android`):
 
 ```sh
-gradle -p gase/mobile/android assembleRelease -PgaseAbis=arm64-v8a \
+gase/mobile/android/gradlew -p gase/mobile/android assembleRelease -PgaseAbis=arm64-v8a \
     -PgaseCrate="$PWD/mobile/Cargo.toml:@ID@-mobile" \
     -PgaseAppId=io.github.gase_recomp.@ID@ -PgaseAppName="@TITLE@"
 adb install gase/mobile/android/app/build/outputs/apk/release/app-release.apk

@@ -4,7 +4,7 @@
 //! ```text
 //!  ROM ──► gase-recomp (this process) ──► <out>/ (a Cargo workspace, mobile/ inside)
 //!                                              │
-//!  gase @ GASE_REV (git, cached) ──► gradle -p mobile/android assembleRelease
+//!  gase @ GASE_REV (git, cached) ──► mobile/android/gradlew assembleRelease
 //!                                    -PgaseCrate=<out>/mobile/Cargo.toml:<id>-mobile
 //!                                              │
 //!                                     <out>/<id>.apk  ──► adb install (optional)
@@ -184,13 +184,6 @@ fn version(program: &Path, arg: &str) -> Option<String> {
         .map(|l| (*l).to_string())
 }
 
-/// "Gradle 8.14.3" → 8.
-fn gradle_major(version: &str) -> Option<u32> {
-    version
-        .split_whitespace()
-        .find_map(|w| w.split('.').next()?.parse().ok())
-}
-
 /// The Android SDK: `ANDROID_HOME`, `ANDROID_SDK_ROOT`, or where Android
 /// Studio installs it.
 #[must_use]
@@ -291,25 +284,6 @@ pub fn check_tools(target: Target, abis: &[String]) -> Vec<Check> {
         "--version",
         "install CMake (it builds SDL2 for Android)",
     );
-    // gase's Android project uses the Android Gradle plugin 8.7, which
-    // needs Gradle 8: Gradle 9 removed APIs it calls.
-    let gradle = version(Path::new("gradle"), "--version");
-    let major = gradle.as_deref().and_then(gradle_major);
-    checks.push(Check {
-        name: "Gradle 8",
-        ok: major == Some(8),
-        detail: match (&gradle, major) {
-            (Some(v), Some(8)) => v.clone(),
-            (Some(v), _) => format!(
-                "{v}: gase's Android project needs Gradle 8 (e.g. `sdk install gradle 8.14.3`, \
-                 or 8.x from https://gradle.org/releases)"
-            ),
-            (None, _) => {
-                "install Gradle 8 (https://gradle.org/releases), or `brew install gradle@8`".into()
-            }
-        },
-        fix: None,
-    });
     if cfg!(windows) {
         checks.push(Check {
             name: "Unix shell",
@@ -535,7 +509,18 @@ fn build(job: &Job, events: &Sender<Event>) -> Result<PathBuf, String> {
     let _ = events.send(Event::Stage(Stage::BuildApk));
     let sdk = android_sdk().ok_or("no Android SDK: install it and set ANDROID_HOME")?;
     log("each ABI compiles the whole game: expect a few minutes".into());
-    let mut gradle = Command::new("gradle");
+    // gase's Gradle wrapper: it downloads the Gradle version gase's
+    // Android project is written for (once, into ~/.gradle), so whichever
+    // Gradle this computer has, if any, does not matter.
+    let gradlew = job.gase_dir.join("mobile/android/gradlew");
+    if !gradlew.exists() {
+        return Err(format!(
+            "{} is missing: gase at {} predates its Gradle wrapper",
+            gradlew.display(),
+            &GASE_REV[..7]
+        ));
+    }
+    let mut gradle = Command::new(&gradlew);
     gradle
         .arg("-p")
         .arg(job.gase_dir.join("mobile/android"))
@@ -781,13 +766,6 @@ mod tests {
             accept_licences: true,
         };
         assert_eq!(fix.display(), "sdkmanager --install \"ndk;27.2.12479018\"");
-    }
-
-    #[test]
-    fn gradle_versions_are_read() {
-        assert_eq!(gradle_major("Gradle 8.14.3"), Some(8));
-        assert_eq!(gradle_major("Gradle 9.1.0"), Some(9));
-        assert_eq!(gradle_major("Welcome to Gradle!"), None);
     }
 
     #[test]
