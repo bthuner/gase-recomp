@@ -93,7 +93,7 @@ and identifier, press **Build the APK**. It recompiles the ROM, fetches gase
 at the right revision, builds with gase's Android project and puts
 `<game>.apk` next to the project, with a button to install it on a phone
 over USB (`adb`). The list on the right shows what this computer is missing
-(Android SDK, NDK, Java, Gradle, CMake, Rust's Android target) and fixes
+(Android SDK, NDK, Java, CMake, Rust's Android target; Gradle comes with gase) and fixes
 what one command can fix. Linux and macOS; on Windows, use WSL.
 
 **Phone builds**: switch them on in the studio (or start it with

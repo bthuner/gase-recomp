@@ -6,6 +6,15 @@ All notable changes to gase-recomp are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-11
+
+### Changed
+- **No Gradle to install.** The studio, CI and the generated `BUILD.md`
+  run gase's Gradle wrapper (`mobile/android/gradlew`, gase 0.3.1), which
+  downloads the Gradle its Android project needs. Gradle 9, Gradle 10 or
+  no Gradle at all: the build works the same, and the studio no longer
+  lists Gradle among the tools it needs.
+
 ## [0.2.1] - 2026-10-11
 
 The studio, after its first builds on other computers.
@@ -69,6 +78,7 @@ edition (0.1.0) stays in the repository as a teaching reference.
 - Release files: the programs for Linux and macOS (Apple silicon), and the
   gase JIT APK.
 
-[Unreleased]: https://github.com/bthuner/gase-recomp/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/bthuner/gase-recomp/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/bthuner/gase-recomp/releases/tag/v0.2.2
 [0.2.1]: https://github.com/bthuner/gase-recomp/releases/tag/v0.2.1
 [0.2.0]: https://github.com/bthuner/gase-recomp/releases/tag/v0.2.0
