@@ -107,6 +107,27 @@ mod tests {
         assert!(missing.is_empty(), "still interpreted: {missing:?}");
     }
 
+    /// The JIT (no recompilation beforehand) plays the ROM exactly like
+    /// gase's interpreter: same picture, same game state, every frame.
+    #[test]
+    fn the_jit_plays_like_the_interpreter() {
+        let rom = Cartridge::from_bytes(ROM).unwrap();
+        let mut jitted = Genesis::new(rom.clone(), &Config::default());
+        jitted.set_external_cpu(Some(Box::new(gase_recomp_jit::Jit::new())));
+        let mut interpreted = Genesis::new(rom, &Config::default());
+        for frame in 0..60 {
+            jitted.run_frame();
+            interpreted.run_frame();
+            assert_eq!(
+                jitted.hw.ram[..0x20],
+                interpreted.hw.ram[..0x20],
+                "game state after frame {frame}"
+            );
+        }
+        check(&jitted, 60);
+        assert_eq!(jitted.frame().pixels, interpreted.frame().pixels, "picture");
+    }
+
     /// Same pictures and RAM as gase's own interpreter running the ROM.
     #[test]
     fn matches_the_interpreter_frame_for_frame() {

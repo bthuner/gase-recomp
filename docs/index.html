@@ -1268,6 +1268,28 @@ pub unsafe extern "C" fn SDL_main(argc: c_int, argv: *mut *mut c_char) -&gt; c_i
       </ul>
       <p class="caption">Generic lesson: when a framework owns the entry point, make the entry point replaceable instead of copying the framework. A feature flag and one function in gase were enough; every game reuses the rest: touch controls, menus, save states, the Gradle and Xcode projects.</p>
 
+      <h3 id="jit">Recompiling while the game runs: a JIT</h3>
+      <p>Everything so far happens <em>before</em> the game runs: the whole ROM is translated, rustc and LLVM compile it, and you get one program per game. A phone cannot do that; it has no compiler. A <strong>JIT</strong> (just-in-time compiler, or dynamic recompiler) flips it around. The first time the 68000 reaches an address, it decodes the code there, writes machine code for it into memory, and jumps to it. The next time, the code is already there. Nothing is built in advance, so it works for <strong>any ROM</strong>.</p>
+      <p>Most of the pieces already existed. <code>crates/jit</code> reuses the generator's decoder and its measured timings, and the console seen as a <code>Machine</code>. What is new is small and pedagogical:</p>
+      <ul class="roadmap">
+        <li><span>A tiny IR<small><code>ir.rs</code> turns a <em>block</em> (straight code up to a branch) into operations: <code>Move</code>, <code>Alu</code>, <code>Lea</code>, <code>Branch</code>, <code>Dbcc</code>… Anything not translated yet becomes <code>Interpret</code>: run that one instruction on gase's interpreter, registers handed over and back. The JIT is correct for every game from the first day, and native coverage grows one family at a time.</small></span><span class="chip chip--live">in place</span></li>
+        <li><span>x86-64 machine code<small><code>x64.rs</code> writes the code with dynasm. The 68000's flags map onto x86's: after an <code>add</code> of the same width, x86's carry, overflow, sign and zero <em>are</em> the 68000's C, V, N and Z. Memory goes through Rust helpers that tell the console the time, as the runtime does.</small></span><span class="chip chip--live">in place</span></li>
+        <li><span>Regions<small>The first version compiled one block at a time and came back to the engine after each: 1.4× the interpreter. Compiling a block <em>together with the blocks its branches reach</em> turns a loop into a real machine-code loop that runs until the console needs attention. That brought it to 10.6×.</small></span><span class="chip chip--live">in place</span></li>
+        <li><span>Tested like the rest<small>A difftest runs random snippets on the JIT and on gase's interpreter and compares registers, flags, memory and cycles; an end-to-end test plays the test ROM on a gase console with the JIT, frame for frame against the interpreter.</small></span><span class="chip chip--live">in place</span></li>
+      </ul>
+      <figure class="code">
+        <div class="code__bar"><span class="file">cargo run --release -p gase-recomp-jit --example bench</span><span class="lang">output</span></div>
+        <pre tabindex="0"><code>registers: 29 M instructions, 235 M cycles
+  interpreter      542.1 ms     433 MHz of 68000
+  JIT (x86-64)      50.9 ms    4613 MHz of 68000   10.6x
+memory: 3 M instructions, 30 M cycles
+  interpreter       64.7 ms     470 MHz of 68000
+  JIT (x86-64)      15.6 ms    1948 MHz of 68000   4.1x
+(a real Mega Drive: 7.67 MHz)</code></pre>
+      </figure>
+      <p>Both runs end with the same registers, the same memory and the same number of cycles as the interpreter; the benchmark checks it. Static recompilation remains the better choice when you can build ahead: it sees the whole program and lets LLVM optimise it. The JIT is the answer when you cannot, on a phone for example. That is the next step: an AArch64 backend, then gase on Android with the JIT for any ROM. (iOS forbids apps to write machine code, so there gase stays with its interpreter.)</p>
+      <p class="caption">Generic lesson: start a JIT with an escape hatch. If every instruction can fall back to a trusted interpreter, the JIT is correct before it is fast, and each new native instruction is a small change checked by the same differential test.</p>
+
       <h3>Two implementations, one lesson</h3>
       <p>The C + Python version stays in the repository (<code>gase/</code>, <code>runtime/</code>, <code>tests/</code>) as the <strong>first draft</strong>: shorter, closer to the classic recompilers, and still the clearest way into chapters 03 to 09. The Rust edition is where the project goes. Reading both side by side is the point: the pipeline — loader, decoder, analysis, codegen, runtime, feedback loop, differential tests — did not change at all. Only the host language and the shoulders it stands on did.</p>
       <p class="caption">Generic lesson: the architecture of a recompiler outlives its implementation language. Keep the stages small and you can rewrite any of them.</p>

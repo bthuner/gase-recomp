@@ -58,6 +58,12 @@ tactiles et menus de gase. Les projets Android et iOS de gase le
 construisent (les commandes sont dans le `BUILD.md` du jeu ; la CI
 construit l'APK de la ROM de test). Le navigateur viendra ensuite.
 
+`crates/jit` est un **JIT** : il traduit le code 68000 en code machine
+x86-64 *pendant* que le jeu tourne, pour n'importe quelle ROM, sans
+compilateur (10,6× l'interpréteur sur une boucle de registres, 4,1× sur
+une boucle mémoire). Ce qu'il ne traduit pas encore passe par
+l'interpréteur de gase. Prochaines étapes : AArch64, puis Android.
+
 ```sh
 cargo test --workspace     # décodeur, tests différentiels, bout en bout
 ```

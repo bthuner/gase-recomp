@@ -11,6 +11,10 @@ publish = false
 gase-recomp-runtime.workspace = true
 gase-core.workspace = true
 
+[dev-dependencies]
+# The JIT plays the same ROM (see the tests).
+gase-recomp-jit = { path = "../jit" }
+
 [build-dependencies]
 gase-recomp.workspace = true
 

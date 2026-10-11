@@ -1,0 +1,26 @@
+[package]
+name = "gase-recomp-jit"
+description = "A dynamic recompiler (JIT): 68000 code to native code while the game runs, for any ROM"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+# The decoder and the instruction timings, shared with the static recompiler.
+gase-recomp.workspace = true
+# The console as a `Machine` (gase's External, or flat RAM in tests).
+gase-recomp-runtime.workspace = true
+gase-core.workspace = true
+gase-m68k.workspace = true
+# Writes x86-64 (and later AArch64) machine code into executable memory.
+dynasmrt = "3"
+
+# The workspace's lints, except that unsafe code is denied rather than
+# forbidden: calling freshly written machine code needs it, in the one
+# module that allows it (src/x64.rs).
+[lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
