@@ -197,6 +197,21 @@ going, and the address is appended to `gase_missing.txt`. Run
 `gase-recomp recomp <rom> -o <this folder>` again: the file is picked up and
 those addresses become recompiled functions. This is the *coverage feedback
 loop* described in the making-of.
+
+## A bug the emulator does not have
+
+If something goes wrong here but not when gase's interpreter runs the same
+ROM, a routine was translated wrong. Find it by bisection: run address
+ranges on the interpreter anyway, and see whether the bug goes away.
+
+```sh
+GASE_RECOMP_INTERPRET=all cargo run --release          # everything: bug gone?
+GASE_RECOMP_INTERPRET=0-0xFFFFF cargo run --release    # first half of the ROM
+GASE_RECOMP_INTERPRET=0x100000-0x17FFFF cargo run --release
+```
+
+Keep halving the range that makes the bug disappear. A save state made just
+before the bug makes each try quick. Please report the final range!
 "#;
 
 #[cfg(test)]
