@@ -118,6 +118,10 @@ pub struct Cx<'a> {
     pub missing: BTreeSet<u32>,
     /// Where to append newly found addresses (None = don't write a file).
     pub missing_log: Option<String>,
+    /// Address ranges (inclusive) to run on the interpreter even though
+    /// they were recompiled: to bisect a miscompiled routine (see
+    /// [`crate::recompiled`]).
+    pub forced: &'a [(u32, u32)],
 }
 
 impl fmt::Debug for Cx<'_> {
@@ -160,6 +164,7 @@ impl<'a> Cx<'a> {
             code,
             missing: BTreeSet::new(),
             missing_log: None,
+            forced: &[],
         };
         cx.load_registers();
         cx
@@ -342,7 +347,11 @@ impl<'a> Cx<'a> {
         let sp = self.a[7];
         self.push32(ret);
         self.pc = target;
-        f(self);
+        if self.forced.is_empty() {
+            f(self);
+        } else {
+            self.dispatch(); // checks the forced ranges
+        }
         self.returned(ret, sp)
     }
 
@@ -384,9 +393,15 @@ impl<'a> Cx<'a> {
     /// Run the code at `pc`: recompiled if we have it, interpreted if not.
     pub fn dispatch(&mut self) {
         self.pc &= 0xFF_FFFF;
-        if !(self.code.dispatch)(self) {
+        if self.is_forced(self.pc) || !(self.code.dispatch)(self) {
             self.interpret();
         }
+    }
+
+    /// Must `pc` run on the interpreter although it was recompiled?
+    #[inline]
+    fn is_forced(&self, pc: u32) -> bool {
+        self.forced.iter().any(|&(lo, hi)| (lo..=hi).contains(&pc))
     }
 
     /// Poll point, placed on backward branches (loops): the only place
@@ -481,7 +496,7 @@ impl<'a> Cx<'a> {
     #[cold]
     fn interpret(&mut self) {
         let start = self.pc;
-        if self.missing.insert(start) && start < 0xE0_0000 {
+        if !self.is_forced(start) && self.missing.insert(start) && start < 0xE0_0000 {
             if let Some(path) = &self.missing_log {
                 if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(path) {
                     let _ = writeln!(f, "0x{start:06X}");
@@ -510,7 +525,8 @@ impl<'a> Cx<'a> {
                 "68000 halted (double fault) at ${:06X}",
                 self.cpu.pc()
             );
-            if (self.code.is_block)(self.cpu.pc() & 0xFF_FFFF) {
+            let pc = self.cpu.pc() & 0xFF_FFFF;
+            if (self.code.is_block)(pc) && !self.is_forced(pc) {
                 break;
             }
         }

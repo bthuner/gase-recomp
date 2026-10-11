@@ -28,10 +28,22 @@ mod tests {
     /// code, the way every gase frontend does; return the console and the
     /// addresses the interpreter had to run (the `gase_missing.txt` lines).
     fn play(code: Code, frames: u32, name: &str) -> (Genesis, Vec<String>) {
+        play_with(code, frames, name, Vec::new())
+    }
+
+    /// `play`, with address ranges forced onto the interpreter.
+    fn play_with(
+        code: Code,
+        frames: u32,
+        name: &str,
+        forced: Vec<(u32, u32)>,
+    ) -> (Genesis, Vec<String>) {
         let log =
             std::env::temp_dir().join(format!("gase-recomp-e2e-{name}-{}.txt", std::process::id()));
         let _ = std::fs::remove_file(&log);
-        let cpu = Recompiled::new(code, "test").log_to(Some(log.to_string_lossy().into_owned()));
+        let cpu = Recompiled::new(code, "test")
+            .log_to(Some(log.to_string_lossy().into_owned()))
+            .interpret(forced);
         let mut console = Genesis::new(Cartridge::from_bytes(ROM).unwrap(), &Config::default());
         console.set_external_cpu(Some(Box::new(cpu)));
         for _ in 0..frames {
@@ -110,6 +122,33 @@ mod tests {
         );
         let r = |g: &Genesis| g.hw.ram[..0x20].to_vec();
         assert_eq!(r(&recompiled), r(&interpreted), "game state in RAM");
+    }
+
+    /// Bisecting a miscompile: forced ranges run on the interpreter, mixed
+    /// with recompiled code, and the game plays exactly the same. Forced
+    /// code is not reported as missing.
+    #[test]
+    fn forced_ranges_run_on_the_interpreter() {
+        let (all_recompiled, _) = play(super::second_pass::code(), 60, "all-rec");
+        for (name, forced) in [
+            ("forced-all", vec![(0, 0xFF_FFFF)]),
+            ("forced-half", vec![(0, 0x2FF)]),
+            ("forced-other", vec![(0x300, 0xFF_FFFF)]),
+        ] {
+            let (console, missing) = play_with(super::second_pass::code(), 60, name, forced);
+            check(&console, 60);
+            assert!(missing.is_empty(), "{name}: {missing:?}");
+            assert_eq!(
+                console.frame().pixels,
+                all_recompiled.frame().pixels,
+                "{name}: picture"
+            );
+            assert_eq!(
+                console.hw.ram[..0x20],
+                all_recompiled.hw.ram[..0x20],
+                "{name}: game state in RAM"
+            );
+        }
     }
 
     /// Save states made while running recompiled code load back and agree.
