@@ -1278,6 +1278,14 @@ pub unsafe extern "C" fn SDL_main(argc: c_int, argv: *mut *mut c_char) -&gt; c_i
         <figcaption class="caption">A real screenshot, taken on the machine this chapter was written on: everything but the Android SDK is there, so Build waits.</figcaption>
       </figure>
       <p>The window is only a layer. Everything the button does lives in <code>pipeline.rs</code>, which reports progress as events on a channel: recompile the ROM with the generator library, clone gase once into a cache at the pinned revision, run its Gradle project with <code>-PgaseCrate</code>, copy the APK next to the project. The same pipeline runs without a window, <code>gase-recomp-studio --cli game.md</code>, and that is how CI builds the test ROM's APK on every pull request. The button is tested even though nobody clicks it.</p>
+      <p>The studio builds for this computer too. Choose <em>This computer</em> and the button becomes <strong>Build the game</strong>: recompile, then <code>cargo build --release</code> on the generated crate. A <strong>Play</strong> button starts the result, which is gase itself with the game's code compiled in. This is the build gase's own pause menu opens with <em>Recompile to native…</em> (<code>gase-recomp-studio --desktop game.md</code>).</p>
+      <figure class="shot wide">
+        <div class="shot__frame">
+          <div class="code__bar"><span class="file">gase-recomp studio · built for this computer</span><span class="lang">980 × 680</span></div>
+          <img src="assets/img/studio-desktop.png" width="980" height="680" loading="lazy" decoding="async" alt="The studio with This computer selected. Requirements: Rust and SDL2, both green. Build: both stages done, the message Your game is ready with the path of the program, a green Play button and Open the folder.">
+        </div>
+        <figcaption class="caption">A real run: the test ROM recompiled and compiled, ready to play.</figcaption>
+      </figure>
       <p class="caption">Generic lesson: put the work in a library and the window on top. The GUI stays small enough to read, and everything it does can be scripted and tested.</p>
 
       <h3>Two implementations, one lesson</h3>
