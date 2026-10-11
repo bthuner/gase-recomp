@@ -10,11 +10,17 @@
 //! * Android: this library's `SDL_main`, built into an app by gase's own
 //!   Android project (`-PgaseCrate=…/crates/jit-app/Cargo.toml:gase-recomp-jit-app`).
 //!
+//! On Android the pause menu also offers **Make an app of this game…**:
+//! the studio on a computer of the same network recompiles the game and
+//! sends back an app, which this one installs (see [`phone`]).
+//!
 //! Not iOS: Apple does not let apps write machine code, so gase stays with
 //! its interpreter there.
 
 use gase_core::system::external;
 use gase_recomp_jit::Jit;
+
+pub mod phone;
 
 /// Use the JIT for every ROM opened from now on.
 pub fn register() {
@@ -22,7 +28,8 @@ pub fn register() {
 }
 
 /// The Android app's entry point, called by SDL (see gase's
-/// mobile/README.md): register the JIT, then run gase's phone app as usual.
+/// mobile/README.md): register the JIT, then run gase's phone app, with
+/// "Make an app of this game…" in its pause menu.
 ///
 /// # Safety
 ///
@@ -37,5 +44,8 @@ pub unsafe extern "C" fn SDL_main(
     register();
     // SAFETY: as promised by our caller.
     let args = unsafe { gase_mobile::args(argc, argv) };
-    gase_mobile::run(&args)
+    let hooks = gase_mobile::Hooks {
+        recompile: Some(phone::make_app),
+    };
+    gase_mobile::run_with(&args, hooks)
 }

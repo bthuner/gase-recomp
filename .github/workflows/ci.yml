@@ -134,7 +134,7 @@ jobs:
         run: |
           gradle -p out/gase/mobile/android assembleDebug --stacktrace -PgaseAbis=arm64-v8a \
             -PgaseCrate="$PWD/crates/jit-app/Cargo.toml:gase-recomp-jit-app" \
-            -PgaseAppId=io.github.gase_recomp.jit -PgaseAppName="gase JIT"
+            -PgaseAppId=io.github.gase_recomp.jit -PgaseAppName="gase JIT" -PgasePhoneBuilds
       - name: Check the APK
         run: |
           apk=out/gase/mobile/android/app/build/outputs/apk/debug/app-debug.apk
@@ -142,6 +142,9 @@ jobs:
           grep -E "^package:|^application-label:" badging.txt
           grep -q "package: name='io.github.gase_recomp.jit'" badging.txt
           grep -q "application-label:'gase JIT'" badging.txt
+          # Phone builds: talk to the studio, install what it built.
+          grep -q "uses-permission: name='android.permission.INTERNET'" badging.txt
+          grep -q "uses-permission: name='android.permission.REQUEST_INSTALL_PACKAGES'" badging.txt
           unzip -o -q "$apk" lib/arm64-v8a/libmain.so -d /tmp/apk
           nm="$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
           "$nm" -D --defined-only /tmp/apk/lib/arm64-v8a/libmain.so | grep -w SDL_main

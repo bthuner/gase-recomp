@@ -88,6 +88,16 @@ liste de droite montre ce qui manque à l'ordinateur (SDK Android, NDK, Java,
 Gradle, CMake, cible Android de Rust) et corrige ce qu'une commande peut
 corriger. Linux et macOS ; sous Windows, passez par WSL.
 
+**Constructions depuis un téléphone** : activez-les dans le studio (ou
+lancez-le avec `--phone-builds`), et l'application Android « gase JIT » du
+même réseau propose **Make an app of this game…** dans son menu pause. Le
+téléphone trouve le studio et envoie la ROM, puis vous cliquez sur
+**Accept** sur l'ordinateur. Le studio construit l'APK, que le téléphone
+télécharge et installe. Rien n'est tapé sur le téléphone, et la ROM reste
+sur votre réseau (`crates/remote` : découverte UDP plus quelques requêtes
+HTTP). Pas de téléphone sous la main ? `cargo run -p gase-recomp-remote
+--example phone -- jeu.md` joue son rôle.
+
 ```sh
 cargo test --workspace     # décodeur, tests différentiels, bout en bout
 ```

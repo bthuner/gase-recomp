@@ -13,11 +13,12 @@ path = "src/main.rs"
 
 [dependencies]
 gase-recomp-jit = { path = "../jit" }
+gase-recomp-remote = { path = "../remote" }
 gase-core.workspace = true
 # gase's frontends (desktop) and its phone shell, without its own SDL_main:
 # lib.rs exports ours on Android. Same revision as the rest (one gase-core).
-gase = { git = "https://github.com/bthuner/gase", rev = "f152ccf9276669bb5c4fda4212c6d65583f289db", default-features = false }
-gase-mobile = { git = "https://github.com/bthuner/gase", rev = "f152ccf9276669bb5c4fda4212c6d65583f289db", default-features = false }
+gase = { git = "https://github.com/bthuner/gase", rev = "7a41ae06b2089d4ad4fc202ae4129b1684d94c24", default-features = false }
+gase-mobile = { git = "https://github.com/bthuner/gase", rev = "7a41ae06b2089d4ad4fc202ae4129b1684d94c24", default-features = false }
 
 [features]
 default = ["window"]
