@@ -133,9 +133,12 @@ played inside gase with graphics identical to the emulator (release build
 about 5 minutes).
 Second: **Aladdin**, recompiled in one pass (release build under 4 minutes)
 and fully playable. A few sprite and background glitches the emulator
-didn't show came from estimated instruction timings; timings are now
+didn't show came from timing: estimated instruction timings (now
 measured on gase's 68000 and checked cycle for cycle by the differential
-test (making-of, chapter 10).
+test) and hardware waits counted too late (now charged at once). The
+glitches no longer reproduce (making-of, chapter 10). A bisection switch,
+`GASE_RECOMP_INTERPRET`, helps find a miscompiled routine in a game we
+don't have.
 
 Works today: full 68000 instruction set (decoder checked against Musashi on
 all 65,536 opcodes, semantics checked by differential tests), VDP (planes,
