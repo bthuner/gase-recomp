@@ -49,9 +49,8 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
             "ndk;$NDK_VERSION" "platforms;android-35" "build-tools;35.0.0" > /dev/null
+      # Caches Gradle; builds run gase's wrapper (its pinned Gradle).
       - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.10.2"
       - name: What the studio sees on this machine
         run: cargo run --release -p gase-recomp-studio -- --check
       - name: Build the test ROM's APK with the studio (the Build button, without the window)
@@ -122,9 +121,8 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
             "ndk;$NDK_VERSION" "platforms;android-35" "build-tools;35.0.0" > /dev/null
+      # Caches Gradle; builds run gase's wrapper (its pinned Gradle).
       - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.10.2"
       - name: gase at the pinned revision
         run: |
           rev=$(sed -n 's/^pub const GASE_REV: &str = "\(.*\)";/\1/p' crates/recomp/src/project.rs)
@@ -132,7 +130,7 @@ jobs:
           git -C out/gase checkout "$rev"
       - name: Build "gase JIT" with gase's Android project (arm64)
         run: |
-          gradle -p out/gase/mobile/android assembleDebug --stacktrace -PgaseAbis=arm64-v8a \
+          out/gase/mobile/android/gradlew -p out/gase/mobile/android assembleDebug --stacktrace -PgaseAbis=arm64-v8a \
             -PgaseCrate="$PWD/crates/jit-app/Cargo.toml:gase-recomp-jit-app" \
             -PgaseAppId=io.github.gase_recomp.jit -PgaseAppName="gase JIT" -PgasePhoneBuilds
       - name: Check the APK

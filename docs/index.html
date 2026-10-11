@@ -710,8 +710,8 @@ for exp, mine in zip(expected, got):
         <pre tabindex="0"><code data-lang="toml"># The emulator we build on: every chip but the 68000 is reused as-is, and its
 # frontends run recompiled games. Keep this revision in sync with GASE_REV in
 # crates/recomp/src/project.rs (a test checks it).
-gase-core  = { git = "https://github.com/bthuner/gase", rev = "0cf61ff8bb7a55a57b5473845720403489b5e780" }
-gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "0cf61ff8bb7a55a57b5473845720403489b5e780" }</code></pre>
+gase-core  = { git = "https://github.com/bthuner/gase", rev = "9988d7666cc7be7f4b51248a7b2fef2b59b35aad" }
+gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "9988d7666cc7be7f4b51248a7b2fef2b59b35aad" }</code></pre>
       </figure>
       <p class="caption">Generic lesson: before writing a runtime, look for an emulator whose bus you can borrow. The CPU is the only part a recompiler truly replaces.</p>
 
@@ -1156,7 +1156,7 @@ fn main() -&gt; ExitCode {
         <pre tabindex="0"><code data-lang="toml">[dependencies]
 gase-recomp-runtime = { git = "https://github.com/bthuner/gase-recomp", branch = "develop" }
 # gase's frontends, at the revision the runtime uses (one gase-core).
-gase = { git = "https://github.com/bthuner/gase", rev = "0cf61ff8bb7a55a57b5473845720403489b5e780", default-features = false }
+gase = { git = "https://github.com/bthuner/gase", rev = "9988d7666cc7be7f4b51248a7b2fef2b59b35aad", default-features = false }
 
 [features]
 default = ["window"]
@@ -1269,7 +1269,7 @@ pub unsafe extern "C" fn SDL_main(argc: c_int, argv: *mut *mut c_char) -&gt; c_i
       <p class="caption">Generic lesson: when a framework owns the entry point, make the entry point replaceable instead of copying the framework. A feature flag and one function in gase were enough; every game reuses the rest: touch controls, menus, save states, the Gradle and Xcode projects.</p>
 
       <h3 id="studio">Pick a ROM, press Build, get an APK</h3>
-      <p>Phone builds worked, but only for someone who already knew Gradle, the NDK and where gase lives. The last step was a window for everyone else: <strong>gase-recomp studio</strong> (<code>cargo run --release -p gase-recomp-studio</code>). It has three cards: the ROM (title, size, CRC-32, checksum), the app (its name and identifier, the processors to build for) and Build. On the right, a list of what the computer needs, checked live: Rust and its Android target, git, Java, Gradle, CMake, the SDK, the NDK. When a fix is a single command, such as <code>rustup target add …</code> or <code>sdkmanager --install "ndk;…"</code>, a button runs it.</p>
+      <p>Phone builds worked, but only for someone who already knew Gradle, the NDK and where gase lives. The last step was a window for everyone else: <strong>gase-recomp studio</strong> (<code>cargo run --release -p gase-recomp-studio</code>). It has three cards: the ROM (title, size, CRC-32, checksum), the app (its name and identifier, the processors to build for) and Build. On the right, a list of what the computer needs, checked live: Rust and its Android target, git, Java, CMake, the SDK, the NDK. (Not Gradle: gase's Android project brings its own, a <em>Gradle wrapper</em> pinned to the version its Android plugin needs, so whatever Gradle a computer has does not matter.) When a fix is a single command, such as <code>rustup target add …</code> or <code>sdkmanager --install "ndk;…"</code>, a button runs it.</p>
       <figure class="shot wide">
         <div class="shot__frame">
           <div class="code__bar"><span class="file">gase-recomp studio · the test ROM loaded</span><span class="lang">980 × 680</span></div>

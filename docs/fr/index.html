@@ -710,8 +710,8 @@ for exp, mine in zip(expected, got):
         <pre tabindex="0"><code data-lang="toml"># The emulator we build on: every chip but the 68000 is reused as-is, and its
 # frontends run recompiled games. Keep this revision in sync with GASE_REV in
 # crates/recomp/src/project.rs (a test checks it).
-gase-core  = { git = "https://github.com/bthuner/gase", rev = "0cf61ff8bb7a55a57b5473845720403489b5e780" }
-gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "0cf61ff8bb7a55a57b5473845720403489b5e780" }</code></pre>
+gase-core  = { git = "https://github.com/bthuner/gase", rev = "9988d7666cc7be7f4b51248a7b2fef2b59b35aad" }
+gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "9988d7666cc7be7f4b51248a7b2fef2b59b35aad" }</code></pre>
       </figure>
       <p class="caption">Leçon générale : avant d’écrire un runtime, cherchez un émulateur dont vous pouvez emprunter le bus. Le processeur est la seule pièce qu’un recompilateur remplace vraiment.</p>
 
@@ -1156,7 +1156,7 @@ fn main() -&gt; ExitCode {
         <pre tabindex="0"><code data-lang="toml">[dependencies]
 gase-recomp-runtime = { git = "https://github.com/bthuner/gase-recomp", branch = "develop" }
 # gase's frontends, at the revision the runtime uses (one gase-core).
-gase = { git = "https://github.com/bthuner/gase", rev = "0cf61ff8bb7a55a57b5473845720403489b5e780", default-features = false }
+gase = { git = "https://github.com/bthuner/gase", rev = "9988d7666cc7be7f4b51248a7b2fef2b59b35aad", default-features = false }
 
 [features]
 default = ["window"]
@@ -1269,7 +1269,7 @@ pub unsafe extern "C" fn SDL_main(argc: c_int, argv: *mut *mut c_char) -&gt; c_i
       <p class="caption">Leçon générale : quand un framework possède le point d’entrée, rendez ce point d’entrée remplaçable au lieu de copier le framework. Une feature et une fonction dans gase ont suffi ; chaque jeu réutilise le reste : contrôles tactiles, menus, sauvegardes d’état, projets Gradle et Xcode.</p>
 
       <h3 id="studio">Choisir une ROM, appuyer sur Build, obtenir un APK</h3>
-      <p>Les builds pour téléphone marchaient, mais seulement pour qui connaissait déjà Gradle, le NDK et l’emplacement de gase. La dernière marche était une fenêtre pour tous les autres : <strong>gase-recomp studio</strong> (<code>cargo run --release -p gase-recomp-studio</code>). Elle a trois cartes : la ROM (titre, taille, CRC-32, checksum), l’application (son nom et son identifiant, les processeurs visés) et Build. À droite, la liste de ce dont l’ordinateur a besoin, vérifiée en direct : Rust et sa cible Android, git, Java, Gradle, CMake, le SDK, le NDK. Quand une correction tient en une commande, comme <code>rustup target add …</code> ou <code>sdkmanager --install "ndk;…"</code>, un bouton la lance.</p>
+      <p>Les builds pour téléphone marchaient, mais seulement pour qui connaissait déjà Gradle, le NDK et l’emplacement de gase. La dernière marche était une fenêtre pour tous les autres : <strong>gase-recomp studio</strong> (<code>cargo run --release -p gase-recomp-studio</code>). Elle a trois cartes : la ROM (titre, taille, CRC-32, checksum), l’application (son nom et son identifiant, les processeurs visés) et Build. À droite, la liste de ce dont l’ordinateur a besoin, vérifiée en direct : Rust et sa cible Android, git, Java, CMake, le SDK, le NDK. (Pas Gradle : le projet Android de gase apporte le sien, un <em>Gradle wrapper</em> épinglé sur la version que demande son plugin Android : le Gradle installé sur l’ordinateur, quel qu’il soit, ne compte pas.) Quand une correction tient en une commande, comme <code>rustup target add …</code> ou <code>sdkmanager --install "ndk;…"</code>, un bouton la lance.</p>
       <figure class="shot wide">
         <div class="shot__frame">
           <div class="code__bar"><span class="file">gase-recomp studio · la ROM de test chargée</span><span class="lang">980 × 680</span></div>
