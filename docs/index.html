@@ -1268,6 +1268,25 @@ pub unsafe extern "C" fn SDL_main(argc: c_int, argv: *mut *mut c_char) -&gt; c_i
       </ul>
       <p class="caption">Generic lesson: when a framework owns the entry point, make the entry point replaceable instead of copying the framework. A feature flag and one function in gase were enough; every game reuses the rest: touch controls, menus, save states, the Gradle and Xcode projects.</p>
 
+      <h3 id="studio">Pick a ROM, press Build, get an APK</h3>
+      <p>Phone builds worked, but only for someone who already knew Gradle, the NDK and where gase lives. The last step was a window for everyone else: <strong>gase-recomp studio</strong> (<code>cargo run --release -p gase-recomp-studio</code>). It has three cards: the ROM (title, size, CRC-32, checksum), the app (its name and identifier, the processors to build for) and Build. On the right, a list of what the computer needs, checked live: Rust and its Android target, git, Java, Gradle, CMake, the SDK, the NDK. When a fix is a single command, such as <code>rustup target add …</code> or <code>sdkmanager --install "ndk;…"</code>, a button runs it.</p>
+      <figure class="shot wide">
+        <div class="shot__frame">
+          <div class="code__bar"><span class="file">gase-recomp studio · the test ROM loaded</span><span class="lang">980 × 680</span></div>
+          <img src="assets/img/studio.png" width="980" height="680" loading="lazy" decoding="async" alt="The gase-recomp studio window. Card 1, The ROM: GASE TEST ROM, 1 KiB, CRC-32 83626297, checksum OK. Card 2, The app: name Gase Test Rom, identifier io.github.gase_recomp.gase_test_rom, processor arm64-v8a ticked. Card 3, Build: the Build the APK button is disabled with the message Some tools are missing, and three stages are listed: recompile the ROM, fetch gase, build the APK. On the right, What you need: green lights for Rust, git, Java, Gradle, CMake and Rust for Android, a red one for the Android SDK.">
+        </div>
+        <figcaption class="caption">A real screenshot, taken on the machine this chapter was written on: everything but the Android SDK is there, so Build waits.</figcaption>
+      </figure>
+      <p>The window is only a layer. Everything the button does lives in <code>pipeline.rs</code>, which reports progress as events on a channel: recompile the ROM with the generator library, clone gase once into a cache at the pinned revision, run its Gradle project with <code>-PgaseCrate</code>, copy the APK next to the project. The same pipeline runs without a window, <code>gase-recomp-studio --cli game.md</code>, and that is how CI builds the test ROM's APK on every pull request. The button is tested even though nobody clicks it.</p>
+      <p>The studio builds for this computer too. Choose <em>This computer</em> and the button becomes <strong>Build the game</strong>: recompile, then <code>cargo build --release</code> on the generated crate. A <strong>Play</strong> button starts the result, which is gase itself with the game's code compiled in. This is the build gase's own pause menu opens with <em>Recompile to native…</em> (<code>gase-recomp-studio --desktop game.md</code>).</p>
+      <figure class="shot wide">
+        <div class="shot__frame">
+          <div class="code__bar"><span class="file">gase-recomp studio · built for this computer</span><span class="lang">980 × 680</span></div>
+          <img src="assets/img/studio-desktop.png" width="980" height="680" loading="lazy" decoding="async" alt="The studio with This computer selected. Requirements: Rust and SDL2, both green. Build: both stages done, the message Your game is ready with the path of the program, a green Play button and Open the folder.">
+        </div>
+        <figcaption class="caption">A real run: the test ROM recompiled and compiled, ready to play.</figcaption>
+      </figure>
+      <p class="caption">Generic lesson: put the work in a library and the window on top. The GUI stays small enough to read, and everything it does can be scripted and tested.</p>
       <h3 id="jit">Recompiling while the game runs: a JIT</h3>
       <p>Everything so far happens <em>before</em> the game runs: the whole ROM is translated, rustc and LLVM compile it, and you get one program per game. A phone cannot do that; it has no compiler. A <strong>JIT</strong> (just-in-time compiler, or dynamic recompiler) flips it around. The first time the 68000 reaches an address, it decodes the code there, writes machine code for it into memory, and jumps to it. The next time, the code is already there. Nothing is built in advance, so it works for <strong>any ROM</strong>.</p>
       <p>Most of the pieces already existed. <code>crates/jit</code> reuses the generator's decoder and its measured timings, and the console seen as a <code>Machine</code>. What is new is small and pedagogical:</p>

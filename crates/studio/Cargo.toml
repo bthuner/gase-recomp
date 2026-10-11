@@ -1,0 +1,22 @@
+[package]
+name = "gase-recomp-studio"
+description = "Pick a ROM, press Build, get an APK: a window around gase-recomp and gase's Android project"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[[bin]]
+name = "gase-recomp-studio"
+path = "src/main.rs"
+
+[dependencies]
+gase-recomp.workspace = true
+# The window: immediate-mode GUI, OpenGL through glow, X11 and Wayland.
+eframe = { version = "0.31", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
+# The system's own "open file" dialog.
+rfd = "0.15"
+
+[lints]
+workspace = true
