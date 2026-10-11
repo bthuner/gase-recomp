@@ -710,8 +710,8 @@ for exp, mine in zip(expected, got):
         <pre tabindex="0"><code data-lang="toml"># The emulator we build on: every chip but the 68000 is reused as-is, and its
 # frontends run recompiled games. Keep this revision in sync with GASE_REV in
 # crates/recomp/src/project.rs (a test checks it).
-gase-core  = { git = "https://github.com/bthuner/gase", rev = "bf711e56b1fbc2c97fac257bf62c95fd760ef9d0" }
-gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "bf711e56b1fbc2c97fac257bf62c95fd760ef9d0" }</code></pre>
+gase-core  = { git = "https://github.com/bthuner/gase", rev = "39c3ac80784760a78b211f3f7739a1920bb11a35" }
+gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "39c3ac80784760a78b211f3f7739a1920bb11a35" }</code></pre>
       </figure>
       <p class="caption">Leçon générale : avant d’écrire un runtime, cherchez un émulateur dont vous pouvez emprunter le bus. Le processeur est la seule pièce qu’un recompilateur remplace vraiment.</p>
 
@@ -1156,7 +1156,7 @@ fn main() -&gt; ExitCode {
         <pre tabindex="0"><code data-lang="toml">[dependencies]
 gase-recomp-runtime = { git = "https://github.com/bthuner/gase-recomp", branch = "develop" }
 # gase's frontends, at the revision the runtime uses (one gase-core).
-gase = { git = "https://github.com/bthuner/gase", rev = "bf711e56b1fbc2c97fac257bf62c95fd760ef9d0", default-features = false }
+gase = { git = "https://github.com/bthuner/gase", rev = "39c3ac80784760a78b211f3f7739a1920bb11a35", default-features = false }
 
 [features]
 default = ["window"]
@@ -1310,6 +1310,31 @@ memory: 3 M instructions, 30 M cycles
       <p>Les téléphones tournent sur AArch64 : le JIT a donc reçu un second backend, <code>a64.rs</code>, à partir de la même IR. Deux différences le rendent instructif. D’abord, AArch64 ne calcule les flags que sur 32 ou 64 bits : un <code>add</code> sur un octet se fait avec les deux opérandes décalés de 24 bits vers la gauche, l’octet tout en haut du registre, et la retenue, le dépassement, le signe et le zéro sur 32 bits sont exactement ceux de l’octet. Ensuite, la retenue d’ARM après une soustraction signifie <em>pas</em> d’emprunt, l’inverse du 68000 : <code>sub</code> et <code>cmp</code> lisent donc la condition « retenue à zéro ». Le même test différentiel exécute le code ARM64 sous qemu, à chaque pull request, et il est passé du premier coup.</p>
       <p>Puis le JIT est entré dans gase lui-même. gase permet à un jeu d’enregistrer son propre processeur pour le checksum de sa ROM ; un nouvel <code>external::register_any</code> en enregistre un pour <em>toutes</em> les ROM. <code>crates/jit-app</code> l’appelle puis démarre gase : <code>gase-jit jeu.md</code> sur un ordinateur, où la ligne d’information de gase indique <code>68000: JIT (x86-64)</code>, et une application Android, « gase JIT », dont le <code>SDL_main</code> fait de même avant de passer la main à la coque téléphone de gase. Toute ROM ouverte dedans, par les menus ou par « Ouvrir avec », tourne en code machine écrit pendant qu’elle joue. L’image de la ROM de test après 120 images est identique octet pour octet à celle de l’interpréteur, et la CI construit l’APK avec le projet Android de gase à chaque pull request.</p>
       <p class="caption">Leçon générale : commencez un JIT avec une porte de sortie. Si chaque instruction peut se replier sur un interpréteur de confiance, le JIT est juste avant d’être rapide, et chaque nouvelle instruction native est un petit changement vérifié par le même test différentiel.</p>
+
+      <h3 id="phone-builds">Faire une application depuis le téléphone</h3>
+      <p>« gase JIT » joue à n’importe quel jeu sur un téléphone, mais un téléphone ne sait toujours pas en faire une application : rustc et Gradle n’y tournent pas. L’ordinateur qui le sait est pourtant souvent dans la même pièce. Le téléphone le lui demande donc. Dans le menu pause de gase JIT, <strong>Make an app of this game…</strong> cherche le studio sur le réseau local, lui envoie la ROM, suit la construction par des notifications, télécharge l’APK et le confie à l’installateur d’Android. Rien n’est tapé sur le téléphone, aucun compte ni jeton n’est nécessaire, et la ROM ne quitte jamais le réseau.</p>
+      <figure class="code">
+        <div class="code__bar"><span class="file">crates/remote · tout le protocole</span><span class="lang">UDP + HTTP/1.1</span></div>
+        <pre tabindex="0"><code> téléphone (gase JIT)                           ordinateur (studio)
+ UDP broadcast  "GASE-RECOMP DISCOVER 1"  ───►  port 38870
+                "GASE-RECOMP STUDIO 1 38870 vm"  ◄───
+ POST /builds?title=ALADDIN   (la ROM)    ───►  « A phone wants an app »
+                201 "7"                   ◄───  Accept / Refuse
+ GET /builds/7, chaque seconde            ───►
+                "running\nBuild the APK\n…"  ◄───  …  "done 41943040"
+ GET /builds/7/apk                        ───►
+                l’APK                     ◄───  → PackageInstaller</code></pre>
+      </figure>
+      <p>Le studio ne répond qu’une fois <strong>Phone builds</strong> activé, et ne construit que ce que quelqu’un accepte sur l’ordinateur :</p>
+      <figure class="shot wide">
+        <div class="shot__frame">
+          <div class="code__bar"><span class="file">gase-recomp studio · un téléphone demande</span><span class="lang">980 × 680</span></div>
+          <img src="../assets/img/studio-phone.png" width="980" height="680" loading="lazy" decoding="async" alt="Le studio avec Phone builds activé, affichant le nom de l’ordinateur. Une fenêtre au milieu : A phone wants an app, le titre du jeu et l’adresse du téléphone, avec les boutons Accept et Refuse.">
+        </div>
+        <figcaption class="caption">Une vraie exécution : un remplaçant du téléphone sur ordinateur (<code>cargo run -p gase-recomp-remote --example phone -- jeu.md</code>) a trouvé le studio et demandé.</figcaption>
+      </figure>
+      <p>Trois petites pièces font le travail, chacune testée séparément. <code>crates/remote</code> est le protocole : quelques centaines de lignes sur les sockets de la bibliothèque standard, avec des tests aller-retour sur de vrais ports. gase a reçu un crochet : le <code>SDL_main</code> d’une application passe <code>Hooks { recompile }</code> à <code>gase_mobile::run_with</code>, et le menu pause affiche l’entrée. Le crochet tourne dans un thread et rend compte par <code>Notices</code>, une file de notifications que la boucle principale vide à chaque image. Enfin, <code>gase_mobile::install_apk</code> écrit l’APK dans le dossier de l’application et envoie un message à l’activité Java. Celle-ci ouvre une session <code>PackageInstaller</code>, et Android demande confirmation à l’utilisateur. Seule une application construite avec <code>-PgasePhoneBuilds</code> demande les deux permissions nécessaires (réseau et installation d’applications) ; l’application gase elle-même n’en demande toujours aucune, et la CI vérifie les deux. La moitié téléphone est testée sur ordinateur contre un vrai serveur de studio : mêmes notifications, même APK.</p>
+      <p class="caption">Leçon générale : quand un appareil ne peut pas faire le travail, demandez-le à une machine proche qui le peut, mais gardez une personne dans la boucle. Ici, c’est un clic sur Accept côté ordinateur et la demande d’installation du système côté téléphone.</p>
 
       <h3>Deux implémentations, une leçon</h3>
       <p>La version C + Python reste dans le dépôt (<code>gase/</code>, <code>runtime/</code>, <code>tests/</code>) comme <strong>premier jet</strong> : plus courte, plus proche des recompilateurs classiques, et toujours la porte d’entrée la plus claire pour les chapitres 03 à 09. L’édition Rust, c’est là où va le projet. Lire les deux côte à côte, c’est tout l’intérêt : le pipeline — chargeur, décodeur, analyse, génération, runtime, boucle de couverture, tests différentiels — n’a pas bougé d’un pouce. Seuls ont changé le langage hôte et les épaules sur lesquelles il s’appuie.</p>

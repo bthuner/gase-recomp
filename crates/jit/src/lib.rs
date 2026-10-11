@@ -395,6 +395,11 @@ impl ExternalCpu for Jit {
         Box::new(Self::new())
     }
 
+    /// Any game, compiled as it runs: gase still offers to recompile it.
+    fn ahead_of_time(&self) -> bool {
+        false
+    }
+
     fn describe(&self) -> String {
         format!("JIT ({})", self.backend_name())
     }

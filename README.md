@@ -91,6 +91,15 @@ over USB (`adb`). The list on the right shows what this computer is missing
 (Android SDK, NDK, Java, Gradle, CMake, Rust's Android target) and fixes
 what one command can fix. Linux and macOS; on Windows, use WSL.
 
+**Phone builds**: switch them on in the studio (or start it with
+`--phone-builds`), and the "gase JIT" Android app on the same network
+offers **Make an app of this game…** in its pause menu. The phone finds
+the studio, sends the ROM, and you click **Accept** on the computer. The
+studio builds the APK, and the phone downloads and installs it. Nothing is
+typed on the phone, and the ROM stays on your network (`crates/remote`:
+UDP discovery plus a few HTTP requests). No phone at hand? `cargo run -p
+gase-recomp-remote --example phone -- game.md` plays its part.
+
 ```sh
 cargo test --workspace                       # decoder, differential and end-to-end tests
 GASE_DIFFTEST_SEED=7 cargo test -p gase-recomp-difftest

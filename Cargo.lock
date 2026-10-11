@@ -1060,7 +1060,7 @@ dependencies = [
 [[package]]
 name = "gase"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=bf711e56b1fbc2c97fac257bf62c95fd760ef9d0#bf711e56b1fbc2c97fac257bf62c95fd760ef9d0"
+source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
 dependencies = [
  "gase-app",
  "gase-core",
@@ -1070,7 +1070,7 @@ dependencies = [
 [[package]]
 name = "gase-app"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=bf711e56b1fbc2c97fac257bf62c95fd760ef9d0#bf711e56b1fbc2c97fac257bf62c95fd760ef9d0"
+source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
 dependencies = [
  "gase-core",
 ]
@@ -1078,7 +1078,7 @@ dependencies = [
 [[package]]
 name = "gase-core"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=bf711e56b1fbc2c97fac257bf62c95fd760ef9d0#bf711e56b1fbc2c97fac257bf62c95fd760ef9d0"
+source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
 dependencies = [
  "gase-m68k",
  "gase-savestate",
@@ -1091,7 +1091,7 @@ dependencies = [
 [[package]]
 name = "gase-m68k"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=bf711e56b1fbc2c97fac257bf62c95fd760ef9d0#bf711e56b1fbc2c97fac257bf62c95fd760ef9d0"
+source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
 dependencies = [
  "gase-savestate",
 ]
@@ -1099,7 +1099,7 @@ dependencies = [
 [[package]]
 name = "gase-mobile"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=bf711e56b1fbc2c97fac257bf62c95fd760ef9d0#bf711e56b1fbc2c97fac257bf62c95fd760ef9d0"
+source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
 dependencies = [
  "gase",
  "sdl2",
@@ -1150,7 +1150,12 @@ dependencies = [
  "gase-core",
  "gase-mobile",
  "gase-recomp-jit",
+ "gase-recomp-remote",
 ]
+
+[[package]]
+name = "gase-recomp-remote"
+version = "0.2.0"
 
 [[package]]
 name = "gase-recomp-runtime"
@@ -1166,18 +1171,19 @@ version = "0.2.0"
 dependencies = [
  "eframe",
  "gase-recomp",
+ "gase-recomp-remote",
  "rfd",
 ]
 
 [[package]]
 name = "gase-savestate"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=bf711e56b1fbc2c97fac257bf62c95fd760ef9d0#bf711e56b1fbc2c97fac257bf62c95fd760ef9d0"
+source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
 
 [[package]]
 name = "gase-sound"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=bf711e56b1fbc2c97fac257bf62c95fd760ef9d0#bf711e56b1fbc2c97fac257bf62c95fd760ef9d0"
+source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
 dependencies = [
  "gase-savestate",
 ]
@@ -1185,7 +1191,7 @@ dependencies = [
 [[package]]
 name = "gase-vdp"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=bf711e56b1fbc2c97fac257bf62c95fd760ef9d0#bf711e56b1fbc2c97fac257bf62c95fd760ef9d0"
+source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
 dependencies = [
  "gase-savestate",
 ]
@@ -1193,7 +1199,7 @@ dependencies = [
 [[package]]
 name = "gase-z80"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=bf711e56b1fbc2c97fac257bf62c95fd760ef9d0#bf711e56b1fbc2c97fac257bf62c95fd760ef9d0"
+source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
 dependencies = [
  "gase-savestate",
 ]
@@ -1201,7 +1207,7 @@ dependencies = [
 [[package]]
 name = "gase-zip"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=bf711e56b1fbc2c97fac257bf62c95fd760ef9d0#bf711e56b1fbc2c97fac257bf62c95fd760ef9d0"
+source = "git+https://github.com/bthuner/gase?rev=39c3ac80784760a78b211f3f7739a1920bb11a35#39c3ac80784760a78b211f3f7739a1920bb11a35"
 
 [[package]]
 name = "gethostname"

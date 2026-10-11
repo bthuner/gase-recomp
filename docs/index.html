@@ -710,8 +710,8 @@ for exp, mine in zip(expected, got):
         <pre tabindex="0"><code data-lang="toml"># The emulator we build on: every chip but the 68000 is reused as-is, and its
 # frontends run recompiled games. Keep this revision in sync with GASE_REV in
 # crates/recomp/src/project.rs (a test checks it).
-gase-core  = { git = "https://github.com/bthuner/gase", rev = "bf711e56b1fbc2c97fac257bf62c95fd760ef9d0" }
-gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "bf711e56b1fbc2c97fac257bf62c95fd760ef9d0" }</code></pre>
+gase-core  = { git = "https://github.com/bthuner/gase", rev = "39c3ac80784760a78b211f3f7739a1920bb11a35" }
+gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "39c3ac80784760a78b211f3f7739a1920bb11a35" }</code></pre>
       </figure>
       <p class="caption">Generic lesson: before writing a runtime, look for an emulator whose bus you can borrow. The CPU is the only part a recompiler truly replaces.</p>
 
@@ -1156,7 +1156,7 @@ fn main() -&gt; ExitCode {
         <pre tabindex="0"><code data-lang="toml">[dependencies]
 gase-recomp-runtime = { git = "https://github.com/bthuner/gase-recomp", branch = "develop" }
 # gase's frontends, at the revision the runtime uses (one gase-core).
-gase = { git = "https://github.com/bthuner/gase", rev = "bf711e56b1fbc2c97fac257bf62c95fd760ef9d0", default-features = false }
+gase = { git = "https://github.com/bthuner/gase", rev = "39c3ac80784760a78b211f3f7739a1920bb11a35", default-features = false }
 
 [features]
 default = ["window"]
@@ -1310,6 +1310,31 @@ memory: 3 M instructions, 30 M cycles
       <p>Phones run AArch64, so the JIT got a second backend, <code>a64.rs</code>, from the same IR. Two differences make it instructive. First, AArch64 computes flags only on 32 or 64 bits: a byte <code>add</code> is done on both operands shifted left by 24, so the byte sits at the top of the register, and the 32-bit carry, overflow, sign and zero are exactly the byte's. Second, ARM's carry after a subtraction means <em>no</em> borrow, the opposite of the 68000, so <code>sub</code> and <code>cmp</code> read the "carry clear" condition. The same difftest runs the ARM64 code under qemu, on every pull request, and it passed the first time.</p>
       <p>Then the JIT went into gase itself. gase lets a game register its own CPU for its ROM's checksum; a new <code>external::register_any</code> registers one for <em>every</em> ROM. <code>crates/jit-app</code> calls it and starts gase: <code>gase-jit game.md</code> on a desktop, where gase's info line reads <code>68000: JIT (x86-64)</code>, and an Android app, "gase JIT", whose <code>SDL_main</code> does the same before handing over to gase's phone shell. Any ROM opened in it, from the menus or with "Open with", runs on machine code written while it plays. The test ROM's picture after 120 frames is byte-identical to the interpreter's, and CI builds the APK with gase's own Android project on every pull request.</p>
       <p class="caption">Generic lesson: start a JIT with an escape hatch. If every instruction can fall back to a trusted interpreter, the JIT is correct before it is fast, and each new native instruction is a small change checked by the same differential test.</p>
+
+      <h3 id="phone-builds">Make an app from the phone</h3>
+      <p>"gase JIT" plays any game on a phone, but a phone still cannot make an app of one: rustc and Gradle do not run there. The computer that can is usually in the same room, though. So the phone asks it. In gase JIT's pause menu, <strong>Make an app of this game…</strong> looks for the studio on the local network, sends it the ROM, follows the build with toasts, downloads the APK and hands it to Android's installer. Nothing is typed on the phone, no account or token is needed, and the ROM never leaves the network.</p>
+      <figure class="code">
+        <div class="code__bar"><span class="file">crates/remote · the whole protocol</span><span class="lang">UDP + HTTP/1.1</span></div>
+        <pre tabindex="0"><code> phone (gase JIT)                               computer (studio)
+ UDP broadcast  "GASE-RECOMP DISCOVER 1"  ───►  port 38870
+                "GASE-RECOMP STUDIO 1 38870 vm"  ◄───
+ POST /builds?title=ALADDIN   (the ROM)   ───►  "A phone wants an app"
+                201 "7"                   ◄───  Accept / Refuse
+ GET /builds/7, every second              ───►
+                "running\nBuild the APK\n…"  ◄───  …  "done 41943040"
+ GET /builds/7/apk                        ───►
+                the APK                   ◄───  → PackageInstaller</code></pre>
+      </figure>
+      <p>The studio answers only once <strong>Phone builds</strong> is switched on, and builds only what someone accepts on the computer:</p>
+      <figure class="shot wide">
+        <div class="shot__frame">
+          <div class="code__bar"><span class="file">gase-recomp studio · a phone asks</span><span class="lang">980 × 680</span></div>
+          <img src="assets/img/studio-phone.png" width="980" height="680" loading="lazy" decoding="async" alt="The studio with Phone builds on, showing the computer's name. A dialog in the middle: A phone wants an app, the game's title and the phone's address, with Accept and Refuse buttons.">
+        </div>
+        <figcaption class="caption">A real run: a desktop stand-in for the phone (<code>cargo run -p gase-recomp-remote --example phone -- game.md</code>) found the studio and asked.</figcaption>
+      </figure>
+      <p>Three small pieces make it work, each one tested on its own. <code>crates/remote</code> is the protocol, a few hundred lines on the standard library's sockets, with round-trip tests on real ports. gase got a hook: an app's <code>SDL_main</code> passes <code>Hooks { recompile }</code> to <code>gase_mobile::run_with</code>, and the pause menu shows the entry. The hook runs on a thread and reports through <code>Notices</code>, a toast queue that the main loop empties each frame. Last, <code>gase_mobile::install_apk</code> writes the APK to the app's folder and sends a message to the Java activity. It opens a <code>PackageInstaller</code> session, and Android asks the user to confirm. Only an app built with <code>-PgasePhoneBuilds</code> asks for the two permissions this needs (network and installing apps); gase's own app still asks for none, and CI checks both. The phone's half is tested on a desktop against a real studio server: the same toasts, the same APK.</p>
+      <p class="caption">Generic lesson: when a device cannot do the work, ask a machine nearby that can, but keep a person in the loop. Here that is one Accept click on the computer and the system's own install prompt on the phone.</p>
 
       <h3>Two implementations, one lesson</h3>
       <p>The C + Python version stays in the repository (<code>gase/</code>, <code>runtime/</code>, <code>tests/</code>) as the <strong>first draft</strong>: shorter, closer to the classic recompilers, and still the clearest way into chapters 03 to 09. The Rust edition is where the project goes. Reading both side by side is the point: the pipeline — loader, decoder, analysis, codegen, runtime, feedback loop, differential tests — did not change at all. Only the host language and the shoulders it stands on did.</p>
