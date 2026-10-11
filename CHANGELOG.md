@@ -6,6 +6,21 @@ All notable changes to gase-recomp are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-11
+
+The studio, after its first builds on other computers.
+
+### Fixed
+- **A failed build says why.** The studio's error used to be the end of
+  the log ("Get more help at…"); it now carries Gradle's *What went wrong*
+  block, or the first error lines of cargo, CMake or the build scripts.
+- **Installing SDK packages from the studio** (the NDK, the Android
+  platform) hung on `sdkmanager`'s licence question, which a window cannot
+  answer. The button now reads *Accept the licence and install*, links the
+  Android SDK licence, and answers it.
+- **Gradle 9 is reported as missing Gradle 8.** gase's Android project
+  needs Gradle 8, and the check passed any Gradle.
+
 ## [0.2.0] - 2026-10-11
 
 The Rust edition: the first published release. Recompiled games run on the
@@ -54,5 +69,6 @@ edition (0.1.0) stays in the repository as a teaching reference.
 - Release files: the programs for Linux and macOS (Apple silicon), and the
   gase JIT APK.
 
-[Unreleased]: https://github.com/bthuner/gase-recomp/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/bthuner/gase-recomp/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/bthuner/gase-recomp/releases/tag/v0.2.1
 [0.2.0]: https://github.com/bthuner/gase-recomp/releases/tag/v0.2.0
