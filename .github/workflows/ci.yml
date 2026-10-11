@@ -27,7 +27,7 @@ jobs:
           for seed in 2 3 4; do GASE_DIFFTEST_SEED=$seed cargo test -p gase-recomp-difftest; done
 
   android:
-    name: Rust edition, Android APK of the test ROM
+    name: Rust edition, Android APK of the test ROM (studio)
     runs-on: ubuntu-latest
     env:
       # Keep equal to ndkVersion in gase's mobile/android/app/build.gradle.
@@ -52,24 +52,17 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.10.2"
-      - name: Recompile the end-to-end test ROM
+      - name: What the studio sees on this machine
+        run: cargo run --release -p gase-recomp-studio -- --check
+      - name: Build the test ROM's APK with the studio (the Build button, without the window)
         run: |
           cargo test -p gase-recomp-e2e --no-run
           rom=$(ls -t target/debug/build/gase-recomp-e2e-*/out/rom.bin | head -1)
-          cargo run --release -p gase-recomp -- recomp "$rom" -o out/game --platform android
-      - name: gase at the revision the game uses
-        run: |
-          rev=$(sed -n 's/^pub const GASE_REV: &str = "\(.*\)";/\1/p' crates/recomp/src/project.rs)
-          git clone https://github.com/bthuner/gase out/gase
-          git -C out/gase checkout "$rev"
-      - name: Build the game's APK (one ABI)
-        run: |
-          gradle -p out/gase/mobile/android assembleDebug --stacktrace -PgaseAbis=arm64-v8a \
-            -PgaseCrate="$PWD/out/game/mobile/Cargo.toml:gase_test_rom-mobile" \
-            -PgaseAppId=io.github.gase_recomp.gase_test_rom -PgaseAppName="GASE TEST ROM"
+          cargo run --release -p gase-recomp-studio -- --cli "$rom" -o out/game \
+            --name "GASE TEST ROM" --id io.github.gase_recomp.gase_test_rom --abis arm64-v8a
       - name: Check the APK
         run: |
-          apk=out/gase/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          apk=out/game/gase_test_rom.apk
           ls -l "$apk"
           # Its own app, next to gase.
           "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "$apk" > badging.txt
@@ -83,7 +76,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: recompiled-test-rom-apk
-          path: out/gase/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          path: out/game/gase_test_rom.apk
 
   test:
     name: C edition (Python + C, Linux)
