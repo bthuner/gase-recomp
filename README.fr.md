@@ -35,6 +35,11 @@ chapitre par chapitre :
 Prérequis : Rust 1.85+ ; pour une fenêtre, SDL2 (`apt install libsdl2-dev`,
 `brew install sdl2`).
 
+Des programmes prêts à l'emploi (`gase-recomp`, `gase-recomp-studio`,
+`gase-jit`, pour Linux et macOS) et l'application Android « gase JIT » sont
+joints à chaque [version publiée](https://github.com/bthuner/gase-recomp/releases).
+Recompiler un jeu compile toujours du Rust : Rust reste nécessaire.
+
 ```sh
 cargo run --release -p gase-recomp -- info   jeu.md
 cargo run --release -p gase-recomp -- recomp jeu.md -o build/jeu

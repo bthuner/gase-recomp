@@ -20,10 +20,16 @@ gase-core.workspace = true
 gase = { git = "https://github.com/bthuner/gase", rev = "39c3ac80784760a78b211f3f7739a1920bb11a35", default-features = false }
 gase-mobile = { git = "https://github.com/bthuner/gase", rev = "39c3ac80784760a78b211f3f7739a1920bb11a35", default-features = false }
 
+# Only named for `static-sdl` below: gase's own SDL2, with more features.
+sdl2 = { version = "0.37", optional = true }
+
 [features]
 default = ["window"]
 # gase's window, sound and gamepads (needs the SDL2 development package).
 window = ["gase/sdl"]
+# SDL2 compiled from source (CMake) and linked into the program, so it runs
+# without SDL2 installed: the release downloads use it.
+static-sdl = ["window", "dep:sdl2", "sdl2/bundled", "sdl2/static-link"]
 
 # Exporting SDL_main needs unsafe, in one function of lib.rs.
 [lints.rust]
