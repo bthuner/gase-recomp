@@ -126,7 +126,14 @@ pub fn check_app_id(id: &str) -> Result<(), String> {
 pub struct Fix {
     pub program: PathBuf,
     pub args: Vec<String>,
+    /// `sdkmanager` asks to accept the Android SDK licence, on its
+    /// standard input. The window says so on the button, and running the
+    /// fix answers "y": clicking is accepting.
+    pub accept_licences: bool,
 }
+
+/// What the Android SDK's licence prompt refers to.
+pub const SDK_LICENCE: &str = "https://developer.android.com/studio/terms";
 
 impl Fix {
     #[must_use]
@@ -175,6 +182,13 @@ fn version(program: &Path, arg: &str) -> Option<String> {
         .find(|l| l.to_lowercase().contains("version") || l.starts_with("Gradle "))
         .or_else(|| lines.first())
         .map(|l| (*l).to_string())
+}
+
+/// "Gradle 8.14.3" → 8.
+fn gradle_major(version: &str) -> Option<u32> {
+    version
+        .split_whitespace()
+        .find_map(|w| w.split('.').next()?.parse().ok())
 }
 
 /// The Android SDK: `ANDROID_HOME`, `ANDROID_SDK_ROOT`, or where Android
@@ -272,17 +286,30 @@ pub fn check_tools(target: Target, abis: &[String]) -> Vec<Check> {
         "install a JDK 17, e.g. Temurin (or the one in Android Studio)",
     );
     tool(
-        "Gradle 8",
-        "gradle",
-        "--version",
-        "install Gradle 8 (https://gradle.org/install), or `brew install gradle`",
-    );
-    tool(
         "CMake",
         "cmake",
         "--version",
         "install CMake (it builds SDL2 for Android)",
     );
+    // gase's Android project uses the Android Gradle plugin 8.7, which
+    // needs Gradle 8: Gradle 9 removed APIs it calls.
+    let gradle = version(Path::new("gradle"), "--version");
+    let major = gradle.as_deref().and_then(gradle_major);
+    checks.push(Check {
+        name: "Gradle 8",
+        ok: major == Some(8),
+        detail: match (&gradle, major) {
+            (Some(v), Some(8)) => v.clone(),
+            (Some(v), _) => format!(
+                "{v}: gase's Android project needs Gradle 8 (e.g. `sdk install gradle 8.14.3`, \
+                 or 8.x from https://gradle.org/releases)"
+            ),
+            (None, _) => {
+                "install Gradle 8 (https://gradle.org/releases), or `brew install gradle@8`".into()
+            }
+        },
+        fix: None,
+    });
     if cfg!(windows) {
         checks.push(Check {
             name: "Unix shell",
@@ -316,6 +343,7 @@ pub fn check_tools(target: Target, abis: &[String]) -> Vec<Check> {
             fix: (!ok && installed.is_some()).then(|| Fix {
                 program: "rustup".into(),
                 args: vec!["target".into(), "add".into(), triple.into()],
+                accept_licences: false,
             }),
         });
     }
@@ -358,6 +386,7 @@ pub fn check_tools(target: Target, abis: &[String]) -> Vec<Check> {
                 fix: (!ok && has_manager).then(|| Fix {
                     program: manager.clone(),
                     args: vec!["--install".into(), package],
+                    accept_licences: true,
                 }),
             });
         }
@@ -597,14 +626,31 @@ fn fetch_gase(dir: &Path, events: &Sender<Event>) -> Result<(), String> {
 }
 
 /// Run a command, sending each line it prints as a log event.
-fn stream(mut command: Command, events: &Sender<Event>) -> Result<(), String> {
+fn stream(command: Command, events: &Sender<Event>) -> Result<(), String> {
+    stream_answering(command, events, false)
+}
+
+/// [`stream`], answering "y" to every question the command asks on its
+/// standard input when `yes` (sdkmanager's licence prompt), and giving it
+/// no input otherwise, so nothing waits for a keyboard it does not have.
+fn stream_answering(mut command: Command, events: &Sender<Event>, yes: bool) -> Result<(), String> {
     let shown = format!("{command:?}").replace('"', "");
     let _ = events.send(Event::Log(format!("$ {shown}")));
     let mut child = command
+        .stdin(if yes { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("{shown}: {e}"))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        std::thread::spawn(move || {
+            use std::io::Write;
+            // Until the command stops reading (its end of the pipe closes).
+            while stdin.write_all(b"y\n").is_ok() {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+        });
+    }
     let pipes: Vec<Box<dyn std::io::Read + Send>> = vec![
         Box::new(child.stdout.take().expect("piped")),
         Box::new(child.stderr.take().expect("piped")),
@@ -614,21 +660,65 @@ fn stream(mut command: Command, events: &Sender<Event>) -> Result<(), String> {
         .map(|pipe| {
             let events = events.clone();
             std::thread::spawn(move || {
+                let mut kept = Vec::new();
                 for line in BufReader::new(pipe).lines().map_while(Result::ok) {
+                    kept.push(line.clone());
                     let _ = events.send(Event::Log(line));
                 }
+                kept
             })
         })
         .collect();
     let status = child.wait().map_err(|e| e.to_string())?;
+    let mut output = Vec::new();
     for r in readers {
-        let _ = r.join();
+        output.extend(r.join().unwrap_or_default());
     }
     if status.success() {
         Ok(())
     } else {
-        Err(format!("{shown} failed ({status})"))
+        let program = command.get_program().to_string_lossy().into_owned();
+        Err(match failure_reason(&output) {
+            Some(reason) => format!("{program} failed ({status}):\n{reason}"),
+            None => format!("{shown} failed ({status})"),
+        })
     }
+}
+
+/// Why a command failed, from its output: the end of a long log is
+/// usually advice ("Get more help at…"), not the cause.
+///
+/// * Gradle explains itself between `* What went wrong:` and `* Try:`.
+/// * Cargo, rustc, CMake and shell scripts print `error…` lines.
+fn failure_reason(output: &[String]) -> Option<String> {
+    if let Some(start) = output.iter().position(|l| l.trim() == "* What went wrong:") {
+        let block: Vec<&str> = output[start + 1..]
+            .iter()
+            .map(|l| l.trim_end())
+            .take_while(|l| !l.starts_with("* Try:") && !l.starts_with("* Exception is:"))
+            .filter(|l| !l.trim().is_empty())
+            .collect();
+        if !block.is_empty() {
+            return Some(block.join("\n"));
+        }
+    }
+    let errors: Vec<&str> = output
+        .iter()
+        .map(|l| l.trim())
+        .filter(|l| {
+            let lower = l.to_lowercase();
+            lower.starts_with("error") || lower.contains("error:") || lower.starts_with("fatal")
+        })
+        .collect();
+    // The first ones: later errors are often consequences of the first.
+    (!errors.is_empty()).then(|| {
+        errors
+            .iter()
+            .take(6)
+            .copied()
+            .collect::<Vec<_>>()
+            .join("\n")
+    })
 }
 
 /// Run a [`Fix`], or `adb install`, the same way.
@@ -636,6 +726,13 @@ pub fn run_command(program: &Path, args: &[String], events: &Sender<Event>) -> R
     let mut c = Command::new(program);
     c.args(args);
     stream(c, events)
+}
+
+/// Run a [`Fix`], accepting licences if it says so.
+pub fn run_fix(fix: &Fix, events: &Sender<Event>) -> Result<(), String> {
+    let mut c = Command::new(&fix.program);
+    c.args(&fix.args);
+    stream_answering(c, events, fix.accept_licences)
 }
 
 #[cfg(test)]
@@ -681,8 +778,68 @@ mod tests {
         let fix = Fix {
             program: "sdkmanager".into(),
             args: vec!["--install".into(), "ndk;27.2.12479018".into()],
+            accept_licences: true,
         };
         assert_eq!(fix.display(), "sdkmanager --install \"ndk;27.2.12479018\"");
+    }
+
+    #[test]
+    fn gradle_versions_are_read() {
+        assert_eq!(gradle_major("Gradle 8.14.3"), Some(8));
+        assert_eq!(gradle_major("Gradle 9.1.0"), Some(9));
+        assert_eq!(gradle_major("Welcome to Gradle!"), None);
+    }
+
+    #[test]
+    fn failures_say_why() {
+        let lines = |s: &str| s.lines().map(String::from).collect::<Vec<_>>();
+        let gradle = lines(
+            "> Task :app:buildNative FAILED\n\nFAILURE: Build failed with an exception.\n\n\
+             * What went wrong:\nExecution failed for task ':app:buildNative'.\n\
+             > Process 'command 'sh'' finished with non-zero exit value 101\n\n\
+             * Try:\n> Run with --stacktrace option to get the stack trace.\n\
+             > Get more help at https://help.gradle.org.\n\nBUILD FAILED in 58s",
+        );
+        assert_eq!(
+            failure_reason(&gradle).as_deref(),
+            Some(
+                "Execution failed for task ':app:buildNative'.\n\
+                 > Process 'command 'sh'' finished with non-zero exit value 101"
+            )
+        );
+        let cargo = lines(
+            "   Compiling foo v0.1.0\nerror[E0425]: cannot find value `x`\n  --> src/lib.rs:1:1\nwarning: unused",
+        );
+        assert_eq!(
+            failure_reason(&cargo).as_deref(),
+            Some("error[E0425]: cannot find value `x`")
+        );
+        assert_eq!(failure_reason(&lines("all good\nbye")), None);
+    }
+
+    #[test]
+    fn licence_prompts_are_answered_only_when_accepted() {
+        // A stand-in for sdkmanager: asks, then installs only on "y".
+        let ask = "printf 'Accept? (y/N): '; read a; [ \"$a\" = y ] && echo installed";
+        let fix = |accept_licences| Fix {
+            program: "sh".into(),
+            args: vec!["-c".into(), ask.into()],
+            accept_licences,
+        };
+        let (tx, rx) = std::sync::mpsc::channel();
+        assert!(run_fix(&fix(true), &tx).is_ok());
+        assert!(
+            run_fix(&fix(false), &tx).is_err(),
+            "no keyboard: no answer, no install"
+        );
+        drop(tx);
+        let installed = rx
+            .iter()
+            .filter(
+                |e| matches!(e, Event::Log(l) if l.ends_with("installed") && !l.starts_with("$ ")),
+            )
+            .count();
+        assert_eq!(installed, 1);
     }
 
     #[test]
