@@ -1116,14 +1116,14 @@ dependencies = [
 
 [[package]]
 name = "gase-recomp"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "gase-m68k",
 ]
 
 [[package]]
 name = "gase-recomp-difftest"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "gase-m68k",
  "gase-recomp",
@@ -1132,7 +1132,7 @@ dependencies = [
 
 [[package]]
 name = "gase-recomp-e2e"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "gase-core",
  "gase-recomp",
@@ -1142,7 +1142,7 @@ dependencies = [
 
 [[package]]
 name = "gase-recomp-jit"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "dynasmrt",
  "gase-core",
@@ -1153,7 +1153,7 @@ dependencies = [
 
 [[package]]
 name = "gase-recomp-jit-app"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "gase",
  "gase-core",
@@ -1165,11 +1165,11 @@ dependencies = [
 
 [[package]]
 name = "gase-recomp-remote"
-version = "0.2.0"
+version = "0.2.1"
 
 [[package]]
 name = "gase-recomp-runtime"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "gase-core",
  "gase-m68k",
@@ -1177,7 +1177,7 @@ dependencies = [
 
 [[package]]
 name = "gase-recomp-studio"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "eframe",
  "gase-recomp",
