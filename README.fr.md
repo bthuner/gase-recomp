@@ -58,6 +58,23 @@ tactiles et menus de gase. Les projets Android et iOS de gase le
 construisent (les commandes sont dans le `BUILD.md` du jeu ; la CI
 construit l'APK de la ROM de test). Le navigateur viendra ensuite.
 
+### Le studio : choisir une ROM, appuyer sur Build, obtenir un APK
+
+```sh
+cargo run --release -p gase-recomp-studio            # la fenêtre
+cargo run --release -p gase-recomp-studio -- --check # ce qui est installé, ce qui manque
+cargo run --release -p gase-recomp-studio -- --cli jeu.md    # pareil, sans fenêtre
+```
+
+Une fenêtre autour de toute la construction Android. Choisissez une ROM,
+vérifiez le nom et l'identifiant de l'application, appuyez sur **Build the
+APK**. Le studio recompile la ROM, récupère gase à la bonne révision,
+construit avec le projet Android de gase et dépose `<jeu>.apk` à côté du
+projet, avec un bouton pour l'installer sur un téléphone en USB (`adb`). La
+liste de droite montre ce qui manque à l'ordinateur (SDK Android, NDK, Java,
+Gradle, CMake, cible Android de Rust) et corrige ce qu'une commande peut
+corriger. Linux et macOS ; sous Windows, passez par WSL.
+
 ```sh
 cargo test --workspace     # décodeur, tests différentiels, bout en bout
 ```
