@@ -1,0 +1,14 @@
+[package]
+name = "gase-recomp-runtime"
+description = "Runtime for statically recompiled Mega Drive games, driven by the gase emulator"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+gase-core.workspace = true
+gase-m68k.workspace = true
+
+[lints]
+workspace = true

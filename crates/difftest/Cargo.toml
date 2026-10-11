@@ -1,0 +1,18 @@
+[package]
+name = "gase-recomp-difftest"
+description = "Differential tests: recompiled code vs. the gase 68000 interpreter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+gase-recomp-runtime.workspace = true
+gase-m68k.workspace = true
+
+[build-dependencies]
+gase-recomp.workspace = true
+
+[lints]
+workspace = true

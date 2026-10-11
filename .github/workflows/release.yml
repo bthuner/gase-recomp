@@ -1,0 +1,283 @@
+# Builds gase-recomp's programs and attaches them to a GitHub release.
+#
+#   gase-recomp-<version>-linux-x86_64.tar.gz   gase-recomp, gase-recomp-studio, gase-jit
+#   gase-recomp-<version>-macos-arm64.tar.gz    the same, for Apple silicon
+#   gase-recomp-<version>-gase-jit-android.apk  "gase JIT" for arm64 phones,
+#                                              debug-signed, with phone builds
+#   SHA256SUMS.txt
+#
+# The programs are only the tools: recompiling a game still compiles the
+# Rust code it generates, so Rust (and, for Android apps, the SDK and NDK)
+# must be installed; `gase-recomp-studio --check` says what is missing.
+# gase-jit has SDL2 linked in and needs nothing else.
+#
+# Two ways to run it (the same as gase's Release workflow):
+# * Publish a release in the GitHub interface with a new tag such as
+#   v0.2.0: the files are built from the tagged commit and attached to it.
+# * Run it by hand (Actions → Release → Run workflow) with a tag and a
+#   commit: it builds that commit, then creates the tag and the release,
+#   with the version's section of CHANGELOG.md as its notes. This also
+#   refills an existing release (files of the same name are replaced).
+#
+# On pull requests that change it, everything is built but nothing is
+# published.
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to create or update, e.g. v0.2.0
+        required: true
+      target:
+        description: Commit or branch to build (when the tag does not exist yet)
+        default: main
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  plan:
+    name: What to build
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.plan.outputs.ref }}
+      tag: ${{ steps.plan.outputs.tag }}
+      name: ${{ steps.plan.outputs.name }}
+    steps:
+      - id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_TARGET: ${{ inputs.target }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "$EVENT" in
+            release)
+              tag=$RELEASE_TAG; ref=$RELEASE_TAG ;;
+            workflow_dispatch)
+              tag=$INPUT_TAG
+              # An existing tag wins over the target: rebuild what it names.
+              if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
+                ref=$tag
+              else
+                ref=$INPUT_TARGET
+              fi ;;
+            *)
+              tag=""; ref=$GITHUB_SHA ;;
+          esac
+          # File names carry the version: v0.2.0 -> gase-recomp-0.2.0-...
+          name="gase-recomp-${tag#v}"
+          [ -n "$tag" ] || name="gase-recomp-dev"
+          { echo "ref=$ref"; echo "tag=$tag"; echo "name=$name"; } >> "$GITHUB_OUTPUT"
+          echo "Building **$ref** as \`$name\`${tag:+ for release $tag}" >> "$GITHUB_STEP_SUMMARY"
+
+  desktop:
+    name: Desktop (${{ matrix.os }})
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The oldest supported Ubuntu runner: binaries built against an
+          # older glibc run on newer systems, not the other way round.
+          - os: linux
+            runner: ubuntu-22.04
+            archive: linux-x86_64
+          - os: macos
+            runner: macos-latest
+            archive: macos-arm64
+    runs-on: ${{ matrix.runner }}
+    env:
+      # gase-jit with SDL2 compiled from source and linked in.
+      FEATURES: gase-recomp-jit-app/static-sdl
+      # SDL 2 asks for CMake 3.0; CMake 4 refuses anything older than 3.5
+      # unless told that the newer policies are fine, which they are.
+      CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.ref }}
+      - name: SDL's build dependencies (Linux)
+        if: matrix.os == 'linux'
+        # Headers only: SDL loads X11, Wayland, ALSA and PulseAudio at run
+        # time, so the binary works whichever of them a system has.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake libasound2-dev libpulse-dev libx11-dev libxext-dev \
+            libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxkbcommon-dev \
+            libwayland-dev wayland-protocols libegl1-mesa-dev libgl1-mesa-dev libudev-dev libdbus-1-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.os }}
+      - name: Build
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = macos ]; then
+            # SDL's game-controller code calls ___isPlatformVersionAtLeast
+            # from clang's runtime library, which Rust does not link by
+            # itself (see gase's Release workflow).
+            rt="$(clang -print-resource-dir)/lib/darwin/libclang_rt.osx.a"
+            test -f "$rt" || { echo "clang runtime not found at $rt"; exit 1; }
+            export RUSTFLAGS="-C link-arg=$rt"
+          fi
+          cargo build --release -p gase-recomp -p gase-recomp-studio -p gase-recomp-jit-app \
+            --features "$FEATURES"
+      - name: Check the programs
+        shell: bash
+        run: |
+          bins="gase-recomp gase-recomp-studio gase-jit"
+          mkdir alone
+          for b in $bins; do cp "target/release/$b" alone/; done
+          ./alone/gase-recomp --version
+          ./alone/gase-jit --version
+          # Lists the tools this runner has; "missing" is not a failure.
+          ./alone/gase-recomp-studio --check || true
+          # gase-jit must not need SDL2 installed.
+          case "${{ matrix.os }}" in
+            linux) ! ldd alone/gase-jit | grep -i sdl ;;
+            macos) ! otool -L alone/gase-jit | grep -i sdl ;;
+          esac
+      - name: Package
+        shell: bash
+        env:
+          NAME: ${{ needs.plan.outputs.name }}
+        run: |
+          dir="$NAME-${{ matrix.archive }}"
+          mkdir -p dist "$dir"
+          cp README.md README.fr.md LICENSE CHANGELOG.md alone/* "$dir/"
+          tar -czf "dist/$dir.tar.gz" "$dir"
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-desktop-${{ matrix.os }}
+          path: dist/*
+
+  android:
+    name: gase JIT for Android
+    needs: plan
+    runs-on: ubuntu-latest
+    env:
+      # Keep equal to ndkVersion in gase's mobile/android/app/build.gradle.
+      NDK_VERSION: 27.2.12479018
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.ref }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-android
+      - name: Android SDK packages (NDK, platform, build tools)
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
+            "ndk;$NDK_VERSION" "platforms;android-35" "build-tools;35.0.0" > /dev/null
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: gase at the pinned revision
+        run: |
+          rev=$(sed -n 's/^pub const GASE_REV: &str = "\(.*\)";/\1/p' crates/recomp/src/project.rs)
+          git clone https://github.com/bthuner/gase out/gase
+          git -C out/gase checkout "$rev"
+      - name: Build "gase JIT" (arm64; release build, signed with the debug key)
+        # The JIT writes AArch64 or x86-64 code: arm64 is every phone of
+        # the last decade.
+        run: |
+          gradle -p out/gase/mobile/android assembleRelease --stacktrace -PgaseAbis=arm64-v8a \
+            -PgaseCrate="$PWD/crates/jit-app/Cargo.toml:gase-recomp-jit-app" \
+            -PgaseAppId=io.github.gase_recomp.jit -PgaseAppName="gase JIT" -PgasePhoneBuilds
+      - name: Check the APK
+        run: |
+          apk=out/gase/mobile/android/app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "$apk" > badging.txt
+          grep -E "^package:|^application-label:" badging.txt
+          grep -q "package: name='io.github.gase_recomp.jit'" badging.txt
+          grep -q "uses-permission: name='android.permission.REQUEST_INSTALL_PACKAGES'" badging.txt
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$apk"
+          mkdir -p dist
+          cp "$apk" dist/gase-jit-android.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-android
+          path: dist/*
+
+  publish:
+    name: Attach to the release
+    needs: [plan, desktop, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.plan.outputs.tag }}
+      NAME: ${{ needs.plan.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Collect the files
+        run: |
+          mkdir dist
+          mv artifacts/release-desktop-*/* dist/
+          mv artifacts/release-android/gase-jit-android.apk "dist/$NAME-gase-jit-android.apk"
+          (cd dist && sha256sum -- * > SHA256SUMS.txt)
+          ls -l dist
+          cat dist/SHA256SUMS.txt
+      - name: Release notes from CHANGELOG.md
+        run: |
+          # The lines between "## [x.y.z]" and the next "## [" heading (or
+          # the link definitions "[x.y.z]: https://..." that end the file).
+          awk -v v="${TAG#v}" '
+            /^## \[/ { if (on) exit; on = index($0, "## [" v "]") == 1; next }
+            /^\[[^]]*\]: / { if (on) exit }
+            on' CHANGELOG.md > notes.md
+          {
+            echo
+            echo "### Downloads"
+            echo "| File | For |"
+            echo "|---|---|"
+            echo "| \`*-linux-x86_64.tar.gz\` | Linux (x86-64, glibc 2.35+): \`gase-recomp\`, \`gase-recomp-studio\`, \`gase-jit\`. |"
+            echo "| \`*-macos-arm64.tar.gz\` | macOS 11+ on Apple silicon, the same three. Not notarised: run \`xattr -d com.apple.quarantine gase-*\` once. |"
+            echo "| \`*-gase-jit-android.apk\` | \"gase JIT\" for Android 5+ on arm64, with *Make an app of this game…*. Signed with a debug key: allow installs from this source. |"
+            echo "| \`SHA256SUMS.txt\` | Checksums of the files above. |"
+            echo
+            echo "Recompiling a game compiles the Rust code it generates: install Rust first (and, for Android apps, the Android SDK and NDK). \`gase-recomp-studio --check\` lists what is missing. \`gase-jit\` includes SDL2 (zlib licence) and needs nothing else."
+          } >> notes.md
+          cat notes.md
+      - name: Dry run (pull request)
+        if: env.TAG == ''
+        run: echo "Pull request, so built everything and published nothing." >> "$GITHUB_STEP_SUMMARY"
+      - name: Create the release if needed, then attach the files
+        if: env.TAG != ''
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            # Creates the tag too. (Events caused by this workflow's token
+            # start no workflows, so this does not run itself again.)
+            gh release create "$TAG" --target "$(git rev-parse HEAD)" \
+              --title "gase-recomp ${TAG#v}" --notes-file notes.md
+          fi
+          gh release upload "$TAG" dist/* --clobber
+          files=(dist/*)
+          echo "Attached ${#files[@]} files to $TAG" >> "$GITHUB_STEP_SUMMARY"

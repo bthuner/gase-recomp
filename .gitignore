@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+build/
+out/
+third_party/
+gase_missing.txt
+*.ppm
+# Never commit game data (Genesis dumps are often .md, which we can't
+# ignore without ignoring Markdown, so: be careful).
+*.bin
+*.gen
+*.smd
+/target/
