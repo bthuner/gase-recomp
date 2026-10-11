@@ -20,6 +20,7 @@
 //! embeds the ROM, and hands over to gase's phone shell (`gase-mobile`).
 //! gase's own Android and iOS projects build it into an app.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -60,6 +61,26 @@ impl RuntimeSource {
             Self::Git { url, rev } => format!("{{ git = {url:?}, branch = {rev:?} }}"),
         }
     }
+}
+
+/// Entry file: one hex address per line, optional name, `#` comments.
+pub fn parse_entries(path: &Path, into: &mut BTreeMap<u32, String>) -> Result<(), String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    for line in text.lines() {
+        let line = line.split('#').next().unwrap_or("").trim();
+        let mut parts = line.split_whitespace();
+        let Some(addr) = parts.next() else { continue };
+        let a = u32::from_str_radix(addr.trim_start_matches("0x").trim_start_matches('$'), 16)
+            .map_err(|e| format!("{}: bad address {addr:?}: {e}", path.display()))?
+            & 0xFF_FFFF;
+        into.insert(
+            a,
+            parts
+                .next()
+                .map_or_else(|| format!("sub_{a:06X}"), str::to_string),
+        );
+    }
+    Ok(())
 }
 
 /// A crate name from the game's title.
@@ -263,7 +284,11 @@ loop* described in the making-of.
 
 `mobile/` is the same game as an app: it exports `SDL_main`, registers the
 same recompiled code and carries `rom.bin` inside. gase's own Android and
-iOS projects build it. Get gase at the revision this game uses:
+iOS projects build it.
+
+The easy way for Android is gase-recomp's studio: pick the ROM, press
+Build, get the APK (`cargo run --release -p gase-recomp-studio` in a
+gase-recomp checkout). By hand, get gase at the revision this game uses:
 
 ```sh
 git clone https://github.com/bthuner/gase && git -C gase checkout @GASE_REV@
