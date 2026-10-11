@@ -710,8 +710,8 @@ for exp, mine in zip(expected, got):
         <pre tabindex="0"><code data-lang="toml"># The emulator we build on: every chip but the 68000 is reused as-is, and its
 # frontends run recompiled games. Keep this revision in sync with GASE_REV in
 # crates/recomp/src/project.rs (a test checks it).
-gase-core  = { git = "https://github.com/bthuner/gase", rev = "f4a73bffd68ea8a6b8d34a5a958391712bc8675f" }
-gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "f4a73bffd68ea8a6b8d34a5a958391712bc8675f" }</code></pre>
+gase-core  = { git = "https://github.com/bthuner/gase", rev = "f152ccf9276669bb5c4fda4212c6d65583f289db" }
+gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "f152ccf9276669bb5c4fda4212c6d65583f289db" }</code></pre>
       </figure>
       <p class="caption">Leçon générale : avant d’écrire un runtime, cherchez un émulateur dont vous pouvez emprunter le bus. Le processeur est la seule pièce qu’un recompilateur remplace vraiment.</p>
 
@@ -1156,7 +1156,7 @@ fn main() -&gt; ExitCode {
         <pre tabindex="0"><code data-lang="toml">[dependencies]
 gase-recomp-runtime = { git = "https://github.com/bthuner/gase-recomp", branch = "develop" }
 # gase's frontends, at the revision the runtime uses (one gase-core).
-gase = { git = "https://github.com/bthuner/gase", rev = "f4a73bffd68ea8a6b8d34a5a958391712bc8675f", default-features = false }
+gase = { git = "https://github.com/bthuner/gase", rev = "f152ccf9276669bb5c4fda4212c6d65583f289db", default-features = false }
 
 [features]
 default = ["window"]
@@ -1289,6 +1289,7 @@ memory: 3 M instructions, 30 M cycles
       </figure>
       <p>Les deux exécutions finissent avec les mêmes registres, la même mémoire et le même nombre de cycles que l’interpréteur : le benchmark le vérifie. La recompilation statique reste le meilleur choix quand on peut construire à l’avance : elle voit tout le programme et laisse LLVM l’optimiser. Le JIT est la réponse quand on ne peut pas, sur un téléphone par exemple. C’est l’étape suivante : gase sur Android avec le JIT pour n’importe quelle ROM. (iOS interdit aux applications d’écrire du code machine : là, gase garde son interpréteur.)</p>
       <p>Les téléphones tournent sur AArch64 : le JIT a donc reçu un second backend, <code>a64.rs</code>, à partir de la même IR. Deux différences le rendent instructif. D’abord, AArch64 ne calcule les flags que sur 32 ou 64 bits : un <code>add</code> sur un octet se fait avec les deux opérandes décalés de 24 bits vers la gauche, l’octet tout en haut du registre, et la retenue, le dépassement, le signe et le zéro sur 32 bits sont exactement ceux de l’octet. Ensuite, la retenue d’ARM après une soustraction signifie <em>pas</em> d’emprunt, l’inverse du 68000 : <code>sub</code> et <code>cmp</code> lisent donc la condition « retenue à zéro ». Le même test différentiel exécute le code ARM64 sous qemu, à chaque pull request, et il est passé du premier coup.</p>
+      <p>Puis le JIT est entré dans gase lui-même. gase permet à un jeu d’enregistrer son propre processeur pour le checksum de sa ROM ; un nouvel <code>external::register_any</code> en enregistre un pour <em>toutes</em> les ROM. <code>crates/jit-app</code> l’appelle puis démarre gase : <code>gase-jit jeu.md</code> sur un ordinateur, où la ligne d’information de gase indique <code>68000: JIT (x86-64)</code>, et une application Android, « gase JIT », dont le <code>SDL_main</code> fait de même avant de passer la main à la coque téléphone de gase. Toute ROM ouverte dedans, par les menus ou par « Ouvrir avec », tourne en code machine écrit pendant qu’elle joue. L’image de la ROM de test après 120 images est identique octet pour octet à celle de l’interpréteur, et la CI construit l’APK avec le projet Android de gase à chaque pull request.</p>
       <p class="caption">Leçon générale : commencez un JIT avec une porte de sortie. Si chaque instruction peut se replier sur un interpréteur de confiance, le JIT est juste avant d’être rapide, et chaque nouvelle instruction native est un petit changement vérifié par le même test différentiel.</p>
 
       <h3>Deux implémentations, une leçon</h3>

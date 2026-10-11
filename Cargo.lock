@@ -4,6 +4,12 @@ version = 4
 
 [[package]]
 name = "bitflags"
+version = "1.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
+
+[[package]]
+name = "bitflags"
 version = "2.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
@@ -15,12 +21,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
+name = "cfg-if"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
+
+[[package]]
 name = "dynasm"
 version = "3.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f7d4c414c94bc830797115b8e5f434d58e7e80cb42ba88508c14bc6ea270625"
 dependencies = [
- "bitflags",
+ "bitflags 2.13.2",
  "byteorder",
  "lazy_static",
  "proc-macro-error2",
@@ -48,9 +60,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+name = "gase"
+version = "0.2.0"
+source = "git+https://github.com/bthuner/gase?rev=f152ccf9276669bb5c4fda4212c6d65583f289db#f152ccf9276669bb5c4fda4212c6d65583f289db"
+dependencies = [
+ "gase-app",
+ "gase-core",
+ "sdl2",
+]
+
+[[package]]
+name = "gase-app"
+version = "0.2.0"
+source = "git+https://github.com/bthuner/gase?rev=f152ccf9276669bb5c4fda4212c6d65583f289db#f152ccf9276669bb5c4fda4212c6d65583f289db"
+dependencies = [
+ "gase-core",
+]
+
+[[package]]
 name = "gase-core"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=f4a73bffd68ea8a6b8d34a5a958391712bc8675f#f4a73bffd68ea8a6b8d34a5a958391712bc8675f"
+source = "git+https://github.com/bthuner/gase?rev=f152ccf9276669bb5c4fda4212c6d65583f289db#f152ccf9276669bb5c4fda4212c6d65583f289db"
 dependencies = [
  "gase-m68k",
  "gase-savestate",
@@ -63,9 +93,18 @@ dependencies = [
 [[package]]
 name = "gase-m68k"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=f4a73bffd68ea8a6b8d34a5a958391712bc8675f#f4a73bffd68ea8a6b8d34a5a958391712bc8675f"
+source = "git+https://github.com/bthuner/gase?rev=f152ccf9276669bb5c4fda4212c6d65583f289db#f152ccf9276669bb5c4fda4212c6d65583f289db"
 dependencies = [
  "gase-savestate",
+]
+
+[[package]]
+name = "gase-mobile"
+version = "0.2.0"
+source = "git+https://github.com/bthuner/gase?rev=f152ccf9276669bb5c4fda4212c6d65583f289db#f152ccf9276669bb5c4fda4212c6d65583f289db"
+dependencies = [
+ "gase",
+ "sdl2",
 ]
 
 [[package]]
@@ -106,6 +145,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "gase-recomp-jit-app"
+version = "0.2.0"
+dependencies = [
+ "gase",
+ "gase-core",
+ "gase-mobile",
+ "gase-recomp-jit",
+]
+
+[[package]]
 name = "gase-recomp-runtime"
 version = "0.2.0"
 dependencies = [
@@ -116,12 +165,12 @@ dependencies = [
 [[package]]
 name = "gase-savestate"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=f4a73bffd68ea8a6b8d34a5a958391712bc8675f#f4a73bffd68ea8a6b8d34a5a958391712bc8675f"
+source = "git+https://github.com/bthuner/gase?rev=f152ccf9276669bb5c4fda4212c6d65583f289db#f152ccf9276669bb5c4fda4212c6d65583f289db"
 
 [[package]]
 name = "gase-sound"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=f4a73bffd68ea8a6b8d34a5a958391712bc8675f#f4a73bffd68ea8a6b8d34a5a958391712bc8675f"
+source = "git+https://github.com/bthuner/gase?rev=f152ccf9276669bb5c4fda4212c6d65583f289db#f152ccf9276669bb5c4fda4212c6d65583f289db"
 dependencies = [
  "gase-savestate",
 ]
@@ -129,7 +178,7 @@ dependencies = [
 [[package]]
 name = "gase-vdp"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=f4a73bffd68ea8a6b8d34a5a958391712bc8675f#f4a73bffd68ea8a6b8d34a5a958391712bc8675f"
+source = "git+https://github.com/bthuner/gase?rev=f152ccf9276669bb5c4fda4212c6d65583f289db#f152ccf9276669bb5c4fda4212c6d65583f289db"
 dependencies = [
  "gase-savestate",
 ]
@@ -137,7 +186,7 @@ dependencies = [
 [[package]]
 name = "gase-z80"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=f4a73bffd68ea8a6b8d34a5a958391712bc8675f#f4a73bffd68ea8a6b8d34a5a958391712bc8675f"
+source = "git+https://github.com/bthuner/gase?rev=f152ccf9276669bb5c4fda4212c6d65583f289db#f152ccf9276669bb5c4fda4212c6d65583f289db"
 dependencies = [
  "gase-savestate",
 ]
@@ -145,7 +194,7 @@ dependencies = [
 [[package]]
 name = "gase-zip"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=f4a73bffd68ea8a6b8d34a5a958391712bc8675f#f4a73bffd68ea8a6b8d34a5a958391712bc8675f"
+source = "git+https://github.com/bthuner/gase?rev=f152ccf9276669bb5c4fda4212c6d65583f289db#f152ccf9276669bb5c4fda4212c6d65583f289db"
 
 [[package]]
 name = "lazy_static"
@@ -209,6 +258,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "sdl2"
+version = "0.37.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b498da7d14d1ad6c839729bd4ad6fc11d90a57583605f3b4df2cd709a9cd380"
+dependencies = [
+ "bitflags 1.3.2",
+ "lazy_static",
+ "libc",
+ "sdl2-sys",
+]
+
+[[package]]
+name = "sdl2-sys"
+version = "0.37.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "951deab27af08ed9c6068b7b0d05a93c91f0a8eb16b6b816a5e73452a43521d3"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "version-compare",
+]
+
+[[package]]
 name = "syn"
 version = "2.0.119"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -224,3 +296,9 @@ name = "unicode-ident"
 version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954"
+
+[[package]]
+name = "version-compare"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "579a42fc0b8e0c63b76519a339be31bed574929511fa53c1a3acae26eb258f29"

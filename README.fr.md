@@ -62,7 +62,11 @@ construit l'APK de la ROM de test). Le navigateur viendra ensuite.
 x86-64 ou AArch64 *pendant* que le jeu tourne, pour n'importe quelle ROM, sans
 compilateur (10,6× l'interpréteur sur une boucle de registres, 4,1× sur
 une boucle mémoire). Ce qu'il ne traduit pas encore passe par
-l'interpréteur de gase. Prochaine étape : Android.
+l'interpréteur de gase. `crates/jit-app` le met dans gase pour toutes
+les ROM : `cargo run --release -p gase-recomp-jit-app -- jeu.md` sur un
+ordinateur, et une application Android « gase JIT » (construite par la CI
+avec le projet Android de gase ; pas iOS, qui interdit aux applications
+d'écrire du code machine).
 
 ```sh
 cargo test --workspace     # décodeur, tests différentiels, bout en bout

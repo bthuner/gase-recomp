@@ -59,7 +59,10 @@ the game's `BUILD.md`; CI builds the test ROM's APK). The browser is next.
 `crates/jit` is a **JIT**: it translates 68000 code to x86-64 or AArch64
 machine code *while* the game runs, for any ROM, with no compiler (10.6× the
 interpreter on a register loop, 4.1× on a memory loop). What it does not
-translate yet goes through gase's interpreter. Next: Android.
+translate yet goes through gase's interpreter. `crates/jit-app` puts it in
+gase for every ROM: `cargo run --release -p gase-recomp-jit-app -- game.md`
+on a desktop, and a "gase JIT" Android app (built by CI with gase's
+Android project; not iOS, which forbids apps to write machine code).
 
 | crate | what you learn there |
 |-------|----------------------|

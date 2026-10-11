@@ -1,0 +1,31 @@
+[package]
+name = "gase-recomp-jit-app"
+description = "gase with the JIT for every ROM: gase-jit on a desktop, an Android app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[[bin]]
+name = "gase-jit"
+path = "src/main.rs"
+
+[dependencies]
+gase-recomp-jit = { path = "../jit" }
+gase-core.workspace = true
+# gase's frontends (desktop) and its phone shell, without its own SDL_main:
+# lib.rs exports ours on Android. Same revision as the rest (one gase-core).
+gase = { git = "https://github.com/bthuner/gase", rev = "f152ccf9276669bb5c4fda4212c6d65583f289db", default-features = false }
+gase-mobile = { git = "https://github.com/bthuner/gase", rev = "f152ccf9276669bb5c4fda4212c6d65583f289db", default-features = false }
+
+[features]
+default = ["window"]
+# gase's window, sound and gamepads (needs the SDL2 development package).
+window = ["gase/sdl"]
+
+# Exporting SDL_main needs unsafe, in one function of lib.rs.
+[lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
