@@ -143,7 +143,21 @@ impl Studio {
         self.progress = Progress::Running(Stage::Recompile);
     }
 
-    /// Run a fix or `adb install` in the background; its output goes to the log.
+    /// Run a fix in the background; its output goes to the log.
+    fn start_fix(&mut self, fix: pipeline::Fix) {
+        let (tx, rx) = channel();
+        std::thread::spawn(move || {
+            let r = pipeline::run_fix(&fix, &tx);
+            let _ = tx.send(Event::Log(match r {
+                Ok(()) => "done".into(),
+                Err(e) => e,
+            }));
+        });
+        self.events = Some(rx);
+        self.show_log = true;
+    }
+
+    /// Run `adb install` in the background; its output goes to the log.
     fn start_command(&mut self, program: PathBuf, args: Vec<String>) {
         let (tx, rx) = channel();
         std::thread::spawn(move || {
@@ -588,20 +602,33 @@ impl Studio {
                 ui.label(RichText::new(&check.detail).color(DIM).small());
             });
             if let Some(fix) = &check.fix {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     ui.add_space(20.0);
+                    // sdkmanager's licence question has no keyboard here:
+                    // the button says that clicking it is the answer.
+                    let label = if fix.accept_licences {
+                        "Accept the licence and install"
+                    } else {
+                        "Fix"
+                    };
                     if ui
-                        .add_enabled(!self.busy(), egui::Button::new("Fix").small())
+                        .add_enabled(!self.busy(), egui::Button::new(label).small())
                         .on_hover_text(fix.display())
                         .clicked()
                     {
                         fix_to_run = Some(fix.clone());
                     }
+                    if fix.accept_licences {
+                        ui.hyperlink_to(
+                            RichText::new("Android SDK licence").small(),
+                            pipeline::SDK_LICENCE,
+                        );
+                    }
                 });
             }
         }
         if let Some(fix) = fix_to_run {
-            self.start_command(fix.program, fix.args);
+            self.start_fix(fix);
         }
 
         ui.add_space(12.0);
