@@ -17,7 +17,7 @@
 //!           │       moveq, add Dn,Dn, Bcc…   →  native operations
 //!           │       everything else         →  "interpret this one"
 //!           ▼
-//!  backend (x64.rs): write machine code with dynasm, add it to the cache
+//!  backend (x64.rs or a64.rs): write machine code with dynasm, cache it
 //! ```
 //!
 //! Between blocks the engine does what the runtime's poll points do for
@@ -28,6 +28,8 @@
 //! the start, and the difftest (tests/difftest.rs) checks it against the
 //! interpreter instruction for instruction, cycles included.
 
+#[cfg(target_arch = "aarch64")]
+mod a64;
 mod ir;
 #[cfg(target_arch = "x86_64")]
 mod x64;
@@ -235,9 +237,11 @@ impl<'a> Ctx<'a> {
 enum Backend {
     #[cfg(target_arch = "x86_64")]
     X64(Box<x64::X64>),
+    #[cfg(target_arch = "aarch64")]
+    A64(Box<a64::A64>),
     /// No native backend for this processor yet: everything is
     /// interpreted (still correct, just not faster).
-    #[cfg_attr(target_arch = "x86_64", allow(dead_code))]
+    #[cfg_attr(any(target_arch = "x86_64", target_arch = "aarch64"), allow(dead_code))]
     None,
 }
 
@@ -281,7 +285,9 @@ impl Jit {
         Self {
             #[cfg(target_arch = "x86_64")]
             backend: Backend::X64(Box::new(x64::X64::new())),
-            #[cfg(not(target_arch = "x86_64"))]
+            #[cfg(target_arch = "aarch64")]
+            backend: Backend::A64(Box::new(a64::A64::new())),
+            #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
             backend: Backend::None,
             cache: HashMap::new(),
             stats: Stats::default(),
@@ -294,6 +300,8 @@ impl Jit {
         match self.backend {
             #[cfg(target_arch = "x86_64")]
             Backend::X64(_) => "x86-64",
+            #[cfg(target_arch = "aarch64")]
+            Backend::A64(_) => "AArch64",
             Backend::None => "none (interpreter only)",
         }
     }
@@ -342,28 +350,37 @@ impl Jit {
     }
 
     fn run_block(&mut self, ctx: &mut Ctx<'_>, pc: u32) {
-        match &mut self.backend {
-            #[cfg(target_arch = "x86_64")]
-            Backend::X64(x64) => {
-                let block = match self.cache.get(&pc) {
-                    Some(b) => *b,
-                    None => {
-                        let m = &mut *ctx.m;
-                        let region = ir::region(|a| Some(m.read_word(a & 0xFF_FFFE)), pc, ROM_END);
-                        let b = Block(x64.compile(&region));
-                        self.cache.insert(pc, b);
-                        self.stats.blocks_compiled += 1;
-                        b
+        let block = match self.cache.get(&pc) {
+            Some(b) => *b,
+            None => {
+                let m = &mut *ctx.m;
+                let region = ir::region(|a| Some(m.read_word(a & 0xFF_FFFE)), pc, ROM_END);
+                let at = match &mut self.backend {
+                    #[cfg(target_arch = "x86_64")]
+                    Backend::X64(x64) => x64.compile(&region),
+                    #[cfg(target_arch = "aarch64")]
+                    Backend::A64(a64) => a64.compile(&region),
+                    Backend::None => {
+                        let _ = region;
+                        ctx.interpret_one();
+                        self.stats.interpreted += 1;
+                        return;
                     }
                 };
-                self.stats.blocks_run += 1;
-                ctx.st.limit = ctx.next_event.min(ctx.st.cycles + SLICE);
-                x64.run(block.0, ctx);
+                let b = Block(at);
+                self.cache.insert(pc, b);
+                self.stats.blocks_compiled += 1;
+                b
             }
-            Backend::None => {
-                ctx.interpret_one();
-                self.stats.interpreted += 1;
-            }
+        };
+        self.stats.blocks_run += 1;
+        ctx.st.limit = ctx.next_event.min(ctx.st.cycles + SLICE);
+        match &mut self.backend {
+            #[cfg(target_arch = "x86_64")]
+            Backend::X64(x64) => x64.run(block.0, ctx),
+            #[cfg(target_arch = "aarch64")]
+            Backend::A64(a64) => a64.run(block.0, ctx),
+            Backend::None => unreachable!("nothing is compiled without a backend"),
         }
     }
 }
