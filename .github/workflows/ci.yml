@@ -85,6 +85,27 @@ jobs:
           name: recompiled-test-rom-apk
           path: out/gase/mobile/android/app/build/outputs/apk/debug/app-debug.apk
 
+  jit-arm64:
+    name: JIT, AArch64 backend (under qemu)
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER: qemu-aarch64 -L /usr/aarch64-linux-gnu
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: jit-arm64
+      - name: Cross toolchain and qemu
+        run: sudo apt-get update && sudo apt-get install -y qemu-user gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+      - name: The JIT's tests and difftest, AArch64 machine code run by qemu
+        run: cargo test --release -p gase-recomp-jit --target aarch64-unknown-linux-gnu
+      - name: The benchmark's equality checks (timings mean nothing under qemu)
+        run: cargo run --release -p gase-recomp-jit --target aarch64-unknown-linux-gnu --example bench
+
   test:
     name: C edition (Python + C, Linux)
     runs-on: ubuntu-latest

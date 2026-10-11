@@ -56,17 +56,17 @@ with its own `SDL_main`, the ROM built in, and gase's touch controls and
 menus. gase's own Android and iOS projects build it (the commands are in
 the game's `BUILD.md`; CI builds the test ROM's APK). The browser is next.
 
-`crates/jit` is a **JIT**: it translates 68000 code to x86-64 machine code
-*while* the game runs, for any ROM, with no compiler (10.6× the
+`crates/jit` is a **JIT**: it translates 68000 code to x86-64 or AArch64
+machine code *while* the game runs, for any ROM, with no compiler (10.6× the
 interpreter on a register loop, 4.1× on a memory loop). What it does not
-translate yet goes through gase's interpreter. Next: AArch64, then Android.
+translate yet goes through gase's interpreter. Next: Android.
 
 | crate | what you learn there |
 |-------|----------------------|
 | [`crates/recomp`](crates/recomp/src/lib.rs) | ROM, 68000 decoder, analysis, Rust code generation (no `goto`: blocks as a state machine) |
 | [`crates/runtime`](crates/runtime/src/lib.rs) | the CPU context, flags, calls and poll points, the interpreter fallback, and how a recompiled game plugs into gase (an `ExternalCpu`) |
 | [`crates/difftest`](crates/difftest/src/lib.rs) | differential testing against gase's hardware-validated 68000 interpreter |
-| [`crates/jit`](crates/jit/src/lib.rs) | a JIT: 68000 code to x86-64 machine code while the game runs, for any ROM (regions, flags mapped onto x86's, an interpreter escape hatch) |
+| [`crates/jit`](crates/jit/src/lib.rs) | a JIT: 68000 code to x86-64 or AArch64 machine code while the game runs, for any ROM (regions, flags mapped onto x86's, an interpreter escape hatch) |
 | [`crates/e2e`](crates/e2e/src/lib.rs) | a hand-assembled ROM, recompiled and played on a gase console: feedback loop, same frames as the interpreter, save states |
 
 ```sh
