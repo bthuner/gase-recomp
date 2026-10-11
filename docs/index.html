@@ -710,8 +710,8 @@ for exp, mine in zip(expected, got):
         <pre tabindex="0"><code data-lang="toml"># The emulator we build on: every chip but the 68000 is reused as-is, and its
 # frontends run recompiled games. Keep this revision in sync with GASE_REV in
 # crates/recomp/src/project.rs (a test checks it).
-gase-core  = { git = "https://github.com/bthuner/gase", rev = "f4a73bffd68ea8a6b8d34a5a958391712bc8675f" }
-gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "f4a73bffd68ea8a6b8d34a5a958391712bc8675f" }</code></pre>
+gase-core  = { git = "https://github.com/bthuner/gase", rev = "bf711e56b1fbc2c97fac257bf62c95fd760ef9d0" }
+gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "bf711e56b1fbc2c97fac257bf62c95fd760ef9d0" }</code></pre>
       </figure>
       <p class="caption">Generic lesson: before writing a runtime, look for an emulator whose bus you can borrow. The CPU is the only part a recompiler truly replaces.</p>
 
@@ -1156,7 +1156,7 @@ fn main() -&gt; ExitCode {
         <pre tabindex="0"><code data-lang="toml">[dependencies]
 gase-recomp-runtime = { git = "https://github.com/bthuner/gase-recomp", branch = "develop" }
 # gase's frontends, at the revision the runtime uses (one gase-core).
-gase = { git = "https://github.com/bthuner/gase", rev = "f4a73bffd68ea8a6b8d34a5a958391712bc8675f", default-features = false }
+gase = { git = "https://github.com/bthuner/gase", rev = "bf711e56b1fbc2c97fac257bf62c95fd760ef9d0", default-features = false }
 
 [features]
 default = ["window"]
@@ -1308,6 +1308,7 @@ memory: 3 M instructions, 30 M cycles
       </figure>
       <p>Both runs end with the same registers, the same memory and the same number of cycles as the interpreter; the benchmark checks it. Static recompilation remains the better choice when you can build ahead: it sees the whole program and lets LLVM optimise it. The JIT is the answer when you cannot, on a phone for example. That is the next step: gase on Android with the JIT for any ROM. (iOS forbids apps to write machine code, so there gase stays with its interpreter.)</p>
       <p>Phones run AArch64, so the JIT got a second backend, <code>a64.rs</code>, from the same IR. Two differences make it instructive. First, AArch64 computes flags only on 32 or 64 bits: a byte <code>add</code> is done on both operands shifted left by 24, so the byte sits at the top of the register, and the 32-bit carry, overflow, sign and zero are exactly the byte's. Second, ARM's carry after a subtraction means <em>no</em> borrow, the opposite of the 68000, so <code>sub</code> and <code>cmp</code> read the "carry clear" condition. The same difftest runs the ARM64 code under qemu, on every pull request, and it passed the first time.</p>
+      <p>Then the JIT went into gase itself. gase lets a game register its own CPU for its ROM's checksum; a new <code>external::register_any</code> registers one for <em>every</em> ROM. <code>crates/jit-app</code> calls it and starts gase: <code>gase-jit game.md</code> on a desktop, where gase's info line reads <code>68000: JIT (x86-64)</code>, and an Android app, "gase JIT", whose <code>SDL_main</code> does the same before handing over to gase's phone shell. Any ROM opened in it, from the menus or with "Open with", runs on machine code written while it plays. The test ROM's picture after 120 frames is byte-identical to the interpreter's, and CI builds the APK with gase's own Android project on every pull request.</p>
       <p class="caption">Generic lesson: start a JIT with an escape hatch. If every instruction can fall back to a trusted interpreter, the JIT is correct before it is fast, and each new native instruction is a small change checked by the same differential test.</p>
 
       <h3>Two implementations, one lesson</h3>

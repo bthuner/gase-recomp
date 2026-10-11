@@ -99,6 +99,57 @@ jobs:
       - name: The benchmark's equality checks (timings mean nothing under qemu)
         run: cargo run --release -p gase-recomp-jit --target aarch64-unknown-linux-gnu --example bench
 
+  jit-android:
+    name: gase JIT for Android (APK)
+    runs-on: ubuntu-latest
+    env:
+      # Keep equal to ndkVersion in gase's mobile/android/app/build.gradle.
+      NDK_VERSION: 27.2.12479018
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: jit-android
+      - name: Android SDK packages (NDK, platform, build tools)
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
+            "ndk;$NDK_VERSION" "platforms;android-35" "build-tools;35.0.0" > /dev/null
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: gase at the pinned revision
+        run: |
+          rev=$(sed -n 's/^pub const GASE_REV: &str = "\(.*\)";/\1/p' crates/recomp/src/project.rs)
+          git clone https://github.com/bthuner/gase out/gase
+          git -C out/gase checkout "$rev"
+      - name: Build "gase JIT" with gase's Android project (arm64)
+        run: |
+          gradle -p out/gase/mobile/android assembleDebug --stacktrace -PgaseAbis=arm64-v8a \
+            -PgaseCrate="$PWD/crates/jit-app/Cargo.toml:gase-recomp-jit-app" \
+            -PgaseAppId=io.github.gase_recomp.jit -PgaseAppName="gase JIT"
+      - name: Check the APK
+        run: |
+          apk=out/gase/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "$apk" > badging.txt
+          grep -E "^package:|^application-label:" badging.txt
+          grep -q "package: name='io.github.gase_recomp.jit'" badging.txt
+          grep -q "application-label:'gase JIT'" badging.txt
+          unzip -o -q "$apk" lib/arm64-v8a/libmain.so -d /tmp/apk
+          nm="$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
+          "$nm" -D --defined-only /tmp/apk/lib/arm64-v8a/libmain.so | grep -w SDL_main
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gase-jit-android-apk
+          path: out/gase/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+
   test:
     name: C edition (Python + C, Linux)
     runs-on: ubuntu-latest
