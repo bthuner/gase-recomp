@@ -388,6 +388,11 @@ pub fn run(job: &Job, events: &Sender<Event>) {
 }
 
 fn build(job: &Job, events: &Sender<Event>) -> Result<PathBuf, String> {
+    // Gradle runs in gase's checkout: every path it gets must be absolute.
+    let job = &Job {
+        out: std::path::absolute(&job.out).map_err(|e| format!("{}: {e}", job.out.display()))?,
+        ..job.clone()
+    };
     let log = |s: String| {
         let _ = events.send(Event::Log(s));
     };
