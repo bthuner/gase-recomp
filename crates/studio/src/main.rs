@@ -3,6 +3,7 @@
 //! ```text
 //! gase-recomp-studio [ROM]              the window
 //! gase-recomp-studio --desktop ROM      the window, set to build for this computer
+//! gase-recomp-studio --phone-builds     the window, phones of this network may ask
 //! gase-recomp-studio --check [--target desktop|android]
 //! gase-recomp-studio --cli ROM [--target android|desktop] [--run] [-o DIR]
 //!                    [--name NAME] [--id APP_ID] [--abis arm64-v8a,...]
@@ -26,6 +27,7 @@ gase-recomp-studio: pick a ROM, press Build, get an Android app
 usage:
   gase-recomp-studio [ROM]           open the window
   gase-recomp-studio --desktop ROM   open the window, set to build for this computer
+  gase-recomp-studio --phone-builds  open the window, letting phones on this network ask for apps
                                      (what gase's \"Recompile to native\" opens)
   gase-recomp-studio --check [--target T] [--abis LIST]
   gase-recomp-studio --cli ROM [--target T] [--run] [-o DIR] [--name NAME] [--id APP_ID] [--abis LIST]
@@ -37,13 +39,14 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = match args.first().map(String::as_str) {
         Some("--cli") => cli(&args[1..]),
-        Some("--desktop") => window(args.get(1).map(PathBuf::from), Target::Desktop),
+        Some("--desktop") => window(args.get(1).map(PathBuf::from), Target::Desktop, false),
+        Some("--phone-builds") => window(None, Target::Android, true),
         Some("--check") => check(&args[1..]),
         Some("-h" | "--help") => {
             print!("{USAGE}");
             Ok(())
         }
-        _ => window(args.first().map(PathBuf::from), Target::Android),
+        _ => window(args.first().map(PathBuf::from), Target::Android, false),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -54,7 +57,7 @@ fn main() -> ExitCode {
     }
 }
 
-fn window(rom: Option<PathBuf>, target: Target) -> Result<(), String> {
+fn window(rom: Option<PathBuf>, target: Target, phone_builds: bool) -> Result<(), String> {
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_title("gase-recomp studio")
@@ -66,7 +69,7 @@ fn window(rom: Option<PathBuf>, target: Target) -> Result<(), String> {
     eframe::run_native(
         "gase-recomp studio",
         options,
-        Box::new(move |cc| Ok(Box::new(app::Studio::new(cc, rom, target)))),
+        Box::new(move |cc| Ok(Box::new(app::Studio::new(cc, rom, target, phone_builds)))),
     )
     .map_err(|e| e.to_string())
 }

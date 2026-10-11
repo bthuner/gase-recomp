@@ -1153,6 +1153,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "gase-recomp-remote"
+version = "0.2.0"
+
+[[package]]
 name = "gase-recomp-runtime"
 version = "0.2.0"
 dependencies = [
@@ -1166,6 +1170,7 @@ version = "0.2.0"
 dependencies = [
  "eframe",
  "gase-recomp",
+ "gase-recomp-remote",
  "rfd",
 ]
 

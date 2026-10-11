@@ -10,6 +10,8 @@ use std::sync::mpsc::{Receiver, channel};
 use std::time::Duration;
 
 use eframe::egui::{self, Color32, RichText};
+use gase_recomp_remote::server::{Request as PhoneRequest, Server};
+use gase_recomp_remote::{PORT, Progress as PhoneProgress};
 
 use crate::pipeline::{self, ABIS, Check, Event, Job, RomInfo, Stage, Target};
 
@@ -43,11 +45,21 @@ pub struct Studio {
     events: Option<Receiver<Event>>,
     log: Vec<String>,
     show_log: bool,
+    /// Phone builds: the server, while the switch is on.
+    phone: Option<Server>,
+    phone_error: Option<String>,
+    /// The phone build running now (its number on the server).
+    phone_build: Option<u32>,
 }
 
 impl Studio {
     #[must_use]
-    pub fn new(cc: &eframe::CreationContext<'_>, rom: Option<PathBuf>, target: Target) -> Self {
+    pub fn new(
+        cc: &eframe::CreationContext<'_>,
+        rom: Option<PathBuf>,
+        target: Target,
+        phone_builds: bool,
+    ) -> Self {
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
         cc.egui_ctx.style_mut(|s| {
             s.spacing.item_spacing = egui::vec2(8.0, 8.0);
@@ -69,10 +81,16 @@ impl Studio {
             events: None,
             log: Vec::new(),
             show_log: false,
+            phone: None,
+            phone_error: None,
+            phone_build: None,
         };
         studio.refresh_checks();
         if let Some(path) = rom {
             studio.load_rom(path);
+        }
+        if phone_builds {
+            studio.set_phone_builds(true);
         }
         studio
     }
@@ -143,7 +161,11 @@ impl Studio {
         let Some(rx) = &self.events else { return };
         let mut finished = false;
         loop {
-            match rx.try_recv() {
+            let event = rx.try_recv();
+            if let Ok(e) = &event {
+                self.tell_phone(e);
+            }
+            match event {
                 Ok(Event::Log(line)) => self.log.push(line),
                 Ok(Event::Stage(stage)) => self.progress = Progress::Running(stage),
                 Ok(Event::Done(Ok(apk))) => self.progress = Progress::Done(apk),
@@ -161,7 +183,139 @@ impl Studio {
         }
         if finished {
             self.events = None;
+            self.phone_build = None;
             self.refresh_checks();
+        }
+    }
+
+    // ---- phone builds ---------------------------------------------------------
+
+    fn set_phone_builds(&mut self, on: bool) {
+        self.phone_error = None;
+        self.phone = None;
+        if on {
+            match Server::start(&host_name(), PORT, Some(PORT)) {
+                Ok(server) => self.phone = Some(server),
+                Err(e) => self.phone_error = Some(format!("cannot listen on port {PORT}: {e}")),
+            }
+        }
+    }
+
+    /// Pass a build event on to the phone that asked for it.
+    fn tell_phone(&self, event: &Event) {
+        let (Some(server), Some(id)) = (&self.phone, self.phone_build) else {
+            return;
+        };
+        let stage = match &self.progress {
+            Progress::Running(s) => s.label().to_string(),
+            _ => String::new(),
+        };
+        match event {
+            Event::Stage(s) => server.set_progress(
+                id,
+                PhoneProgress::Running {
+                    stage: s.label().into(),
+                    log: String::new(),
+                },
+            ),
+            Event::Log(line) => server.set_progress(
+                id,
+                PhoneProgress::Running {
+                    stage,
+                    log: line.clone(),
+                },
+            ),
+            Event::Done(Ok(apk)) => match std::fs::read(apk) {
+                Ok(bytes) => server.finish(id, bytes),
+                Err(e) => server.set_progress(id, PhoneProgress::Failed(e.to_string())),
+            },
+            Event::Done(Err(e)) => server.set_progress(id, PhoneProgress::Failed(e.clone())),
+        }
+    }
+
+    /// Accept a phone's request: build its ROM into an APK for arm64.
+    fn accept_phone(&mut self, request: &PhoneRequest) {
+        let Some(rom) = self.phone.as_ref().and_then(|s| s.rom(request.id)) else {
+            return;
+        };
+        let fail = |studio: &Self, e: String| {
+            if let Some(server) = &studio.phone {
+                server.set_progress(request.id, PhoneProgress::Failed(e));
+            }
+        };
+        let dir = pipeline::default_gase_dir()
+            .parent()
+            .map_or_else(std::env::temp_dir, |p| p.join("phone"));
+        let path = dir.join(format!("{}.bin", request.id));
+        if let Err(e) = std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&path, &rom)) {
+            fail(self, e.to_string());
+            return;
+        }
+        // (Not a ROM? Then nothing is loaded, rather than the last one.)
+        self.rom = None;
+        self.load_rom(path);
+        let Some(id) = self.rom.as_ref().map(|info| info.id.clone()) else {
+            fail(self, self.rom_error.clone().unwrap_or_default());
+            return;
+        };
+        // Next to the other phone builds, named after the game.
+        self.out = dir.join(format!("{id}-recomp"));
+        self.target = Target::Android;
+        for (abi, on) in &mut self.abis {
+            *on = *abi == "arm64-v8a";
+        }
+        self.refresh_checks();
+        self.phone_build = Some(request.id);
+        self.start_build();
+    }
+
+    /// The question, while a phone waits for an answer.
+    fn phone_dialog(&mut self, ctx: &egui::Context) {
+        if self.busy() {
+            return; // asked again when this build is over
+        }
+        let Some(request) = self
+            .phone
+            .as_ref()
+            .and_then(|s| s.waiting().first().cloned())
+        else {
+            return;
+        };
+        let mut answer = None;
+        egui::Window::new("A phone wants an app")
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+            .show(ctx, |ui| {
+                ui.label(
+                    RichText::new(format!("Build \"{}\" into an Android app?", request.title))
+                        .size(16.0)
+                        .strong(),
+                );
+                ui.label(
+                    RichText::new(format!("Asked by {} on this network.", request.from.ip()))
+                        .color(DIM),
+                );
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    let accept = egui::Button::new(RichText::new("Accept").strong())
+                        .fill(GOOD.gamma_multiply(0.5));
+                    if ui.add(accept).clicked() {
+                        answer = Some(true);
+                    }
+                    if ui.button("Refuse").clicked() {
+                        answer = Some(false);
+                    }
+                });
+            });
+        match answer {
+            Some(true) => self.accept_phone(&request),
+            Some(false) => {
+                if let Some(server) = &self.phone {
+                    server.set_progress(request.id, PhoneProgress::Refused);
+                }
+            }
+            None => {}
         }
     }
 
@@ -255,6 +409,8 @@ impl Studio {
         ui.label("");
         match pipeline::check_app_id(self.app_id.trim()) {
             Ok(()) => ui.label(RichText::new("installs as its own app, next to gase").color(DIM)),
+            // (Nothing to complain about before a ROM is chosen.)
+            Err(_) if self.rom.is_none() => ui.label(""),
             Err(e) => ui.colored_label(BAD, e),
         };
         ui.end_row();
@@ -447,7 +603,65 @@ impl Studio {
         if let Some(fix) = fix_to_run {
             self.start_command(fix.program, fix.args);
         }
+
+        ui.add_space(12.0);
+        ui.separator();
+        ui.heading("Phone builds");
+        let mut on = self.phone.is_some();
+        if ui
+            .checkbox(&mut on, "Phones on this network may ask")
+            .on_hover_text("gase on a phone: pause menu → Make an app of this game")
+            .changed()
+        {
+            self.set_phone_builds(on);
+        }
+        match (&self.phone, &self.phone_error) {
+            (Some(server), _) => {
+                ui.horizontal(|ui| {
+                    dot(ui, GOOD);
+                    ui.label(
+                        RichText::new(format!(
+                            "Listening as {} (port {})",
+                            host_name(),
+                            server.port()
+                        ))
+                        .small(),
+                    );
+                });
+                ui.label(
+                    RichText::new("You will be asked before anything is built.")
+                        .color(DIM)
+                        .small(),
+                );
+            }
+            (None, Some(e)) => {
+                ui.colored_label(BAD, RichText::new(e).small());
+            }
+            (None, None) => {
+                ui.label(
+                    RichText::new("Off: phones cannot see this computer.")
+                        .color(DIM)
+                        .small(),
+                );
+            }
+        }
     }
+}
+
+/// This computer's name, as phones will show it.
+fn host_name() -> String {
+    std::env::var("HOSTNAME")
+        .ok()
+        .or_else(|| std::fs::read_to_string("/etc/hostname").ok())
+        .or_else(|| {
+            std::process::Command::new("hostname")
+                .output()
+                .ok()
+                .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+        })
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "studio".into())
 }
 
 impl eframe::App for Studio {
@@ -455,7 +669,11 @@ impl eframe::App for Studio {
         self.poll();
         if self.busy() {
             ctx.request_repaint_after(Duration::from_millis(100));
+        } else if self.phone.is_some() {
+            // Look for phone requests twice a second.
+            ctx.request_repaint_after(Duration::from_millis(500));
         }
+        self.phone_dialog(ctx);
         // A ROM dropped on the window.
         if let Some(path) = ctx.input(|i| i.raw.dropped_files.first().and_then(|f| f.path.clone()))
         {
