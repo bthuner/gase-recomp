@@ -70,9 +70,12 @@ l'interpréteur de gase. Prochaines étapes : AArch64, puis Android.
 cargo run --release -p gase-recomp-studio            # la fenêtre
 cargo run --release -p gase-recomp-studio -- --check # ce qui est installé, ce qui manque
 cargo run --release -p gase-recomp-studio -- --cli jeu.md    # pareil, sans fenêtre
+cargo run --release -p gase-recomp-studio -- --cli jeu.md --target desktop --run
 ```
 
-Une fenêtre autour de toute la construction Android. Choisissez une ROM,
+**This computer** : recompiler, compiler, puis **Play** lance gase avec le
+code du jeu intégré (`--desktop jeu.md` ouvre la fenêtre réglée ainsi).
+**Android app** : une fenêtre autour de toute la construction Android. Choisissez une ROM,
 vérifiez le nom et l'identifiant de l'application, appuyez sur **Build the
 APK**. Le studio recompile la ROM, récupère gase à la bonne révision,
 construit avec le projet Android de gase et dépose `<jeu>.apk` à côté du

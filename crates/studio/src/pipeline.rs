@@ -207,9 +207,47 @@ pub fn adb() -> Option<PathBuf> {
         .or_else(|| version(Path::new("adb"), "version").map(|_| PathBuf::from("adb")))
 }
 
-/// Everything an APK build needs, for these ABIs.
+/// SDL2's development files, which gase's window links against.
+fn sdl2_check() -> Check {
+    let found = if cfg!(windows) {
+        Some("see gase's README for SDL2 on Windows (vcpkg)".to_string())
+    } else {
+        version(Path::new("pkg-config"), "--modversion")
+            .and(
+                Command::new("pkg-config")
+                    .args(["--modversion", "sdl2"])
+                    .output()
+                    .ok()
+                    .filter(|o| o.status.success())
+                    .map(|o| format!("SDL2 {}", String::from_utf8_lossy(&o.stdout).trim())),
+            )
+            .or_else(|| version(Path::new("sdl2-config"), "--version").map(|v| format!("SDL2 {v}")))
+    };
+    Check {
+        name: "SDL2 (window, sound)",
+        ok: found.is_some(),
+        detail: found.unwrap_or_else(|| {
+            "apt install libsdl2-dev · brew install sdl2 · dnf install SDL2-devel".into()
+        }),
+        fix: None,
+    }
+}
+
+/// Everything a build for `target` needs (for these ABIs, on Android).
 #[must_use]
-pub fn check_tools(abis: &[String]) -> Vec<Check> {
+pub fn check_tools(target: Target, abis: &[String]) -> Vec<Check> {
+    if target == Target::Desktop {
+        let cargo = version(Path::new("cargo"), "--version");
+        return vec![
+            Check {
+                name: "Rust (cargo)",
+                ok: cargo.is_some(),
+                detail: cargo.unwrap_or_else(|| "install from https://rustup.rs".into()),
+                fix: None,
+            },
+            sdl2_check(),
+        ];
+    }
     let mut checks = Vec::new();
     let mut tool = |name, program: &str, arg, hint: &str| {
         let v = version(Path::new(program), arg);
@@ -329,9 +367,30 @@ pub fn check_tools(abis: &[String]) -> Vec<Check> {
 
 // ---- the build ----------------------------------------------------------------------
 
+/// What to build: an Android app, or the game for this computer.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Target {
+    #[default]
+    Android,
+    /// gase plus the game's code, built here, played in gase's window.
+    Desktop,
+}
+
+impl Target {
+    /// The stages the build goes through, in order.
+    #[must_use]
+    pub fn stages(self) -> &'static [Stage] {
+        match self {
+            Self::Android => &[Stage::Recompile, Stage::FetchGase, Stage::BuildApk],
+            Self::Desktop => &[Stage::Recompile, Stage::BuildDesktop],
+        }
+    }
+}
+
 /// What to build.
 #[derive(Clone, Debug)]
 pub struct Job {
+    pub target: Target,
     pub rom: PathBuf,
     /// The generated project; the APK is copied here too.
     pub out: PathBuf,
@@ -348,17 +407,17 @@ pub enum Stage {
     Recompile,
     FetchGase,
     BuildApk,
+    BuildDesktop,
 }
 
 impl Stage {
-    pub const ALL: [Self; 3] = [Self::Recompile, Self::FetchGase, Self::BuildApk];
-
     #[must_use]
     pub fn label(self) -> &'static str {
         match self {
             Self::Recompile => "Recompile the ROM to Rust",
             Self::FetchGase => "Fetch gase (the emulator around the game)",
             Self::BuildApk => "Build the APK (Rust for Android, SDL2, Gradle)",
+            Self::BuildDesktop => "Compile the game for this computer (cargo build --release)",
         }
     }
 }
@@ -367,7 +426,7 @@ impl Stage {
 pub enum Event {
     Stage(Stage),
     Log(String),
-    /// The APK, or what went wrong.
+    /// The APK or the program, or what went wrong.
     Done(Result<PathBuf, String>),
 }
 
@@ -396,9 +455,11 @@ fn build(job: &Job, events: &Sender<Event>) -> Result<PathBuf, String> {
     let log = |s: String| {
         let _ = events.send(Event::Log(s));
     };
-    check_app_id(&job.app_id)?;
-    if job.abis.is_empty() {
-        return Err("choose at least one processor family (ABI)".into());
+    if job.target == Target::Android {
+        check_app_id(&job.app_id)?;
+        if job.abis.is_empty() {
+            return Err("choose at least one processor family (ABI)".into());
+        }
     }
 
     // 1. The ROM becomes a Rust workspace (with its phone crate).
@@ -431,7 +492,11 @@ fn build(job: &Job, events: &Sender<Event>) -> Result<PathBuf, String> {
     )
     .map_err(|e| e.to_string())?;
     log(format!("{files} Rust files in {}", job.out.display()));
-    let package = format!("{}-mobile", identifier(rom.title()));
+    let id = identifier(rom.title());
+    if job.target == Target::Desktop {
+        return build_desktop(job, &id, events);
+    }
+    let package = format!("{id}-mobile");
 
     // 2. gase, at the revision the generated code is written against.
     let _ = events.send(Event::Stage(Stage::FetchGase));
@@ -458,10 +523,49 @@ fn build(job: &Job, events: &Sender<Event>) -> Result<PathBuf, String> {
     let built = job
         .gase_dir
         .join("mobile/android/app/build/outputs/apk/release/app-release.apk");
-    let apk = job.out.join(format!("{}.apk", identifier(rom.title())));
+    let apk = job.out.join(format!("{id}.apk"));
     std::fs::copy(&built, &apk).map_err(|e| format!("{}: {e}", built.display()))?;
     log(format!("APK: {}", apk.display()));
     Ok(apk)
+}
+
+/// The game for this computer: the generated crate is gase plus the
+/// game's code, built like any Cargo project.
+fn build_desktop(job: &Job, id: &str, events: &Sender<Event>) -> Result<PathBuf, String> {
+    let _ = events.send(Event::Stage(Stage::BuildDesktop));
+    let _ = events.send(Event::Log(
+        "the first build compiles gase too; a big game takes a few minutes".into(),
+    ));
+    let mut cargo = Command::new("cargo");
+    cargo
+        .args(["build", "--release", "--manifest-path"])
+        .arg(job.out.join("Cargo.toml"));
+    stream(cargo, events)?;
+    let exe = job
+        .out
+        .join("target/release")
+        .join(format!("{id}{}", std::env::consts::EXE_SUFFIX));
+    if !exe.exists() {
+        return Err(format!("no program at {}", exe.display()));
+    }
+    let _ = events.send(Event::Log(format!("program: {}", exe.display())));
+    Ok(exe)
+}
+
+/// Start a recompiled game built by [`Target::Desktop`]. It runs in its
+/// project folder, where it finds `rom.bin` and writes `gase_missing.txt`
+/// (the next build picks that up).
+pub fn play(exe: &Path) -> Result<(), String> {
+    let project = exe
+        .parent()
+        .and_then(Path::parent)
+        .and_then(Path::parent)
+        .ok_or("not a built game")?;
+    Command::new(exe)
+        .current_dir(project)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("{}: {e}", exe.display()))
 }
 
 /// Clone gase once, then make sure the pinned revision is checked out.

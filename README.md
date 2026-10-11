@@ -69,15 +69,18 @@ translate yet goes through gase's interpreter. Next: AArch64, then Android.
 | [`crates/jit`](crates/jit/src/lib.rs) | a JIT: 68000 code to x86-64 machine code while the game runs, for any ROM (regions, flags mapped onto x86's, an interpreter escape hatch) |
 | [`crates/e2e`](crates/e2e/src/lib.rs) | a hand-assembled ROM, recompiled and played on a gase console: feedback loop, same frames as the interpreter, save states |
 
-### The studio: pick a ROM, press Build, get an APK
+### The studio: pick a ROM, press Build, play
 
 ```sh
 cargo run --release -p gase-recomp-studio            # the window
 cargo run --release -p gase-recomp-studio -- --check # what is installed, what is missing
 cargo run --release -p gase-recomp-studio -- --cli game.md   # same, without a window
+cargo run --release -p gase-recomp-studio -- --cli game.md --target desktop --run
 ```
 
-A window around the whole Android build. Pick a ROM, check the app's name
+**This computer**: recompile, compile, then **Play** starts gase with the
+game's code built in (`--desktop game.md` opens the window set to it).
+**Android app**: a window around the whole Android build. Pick a ROM, check the app's name
 and identifier, press **Build the APK**. It recompiles the ROM, fetches gase
 at the right revision, builds with gase's Android project and puts
 `<game>.apk` next to the project, with a button to install it on a phone
