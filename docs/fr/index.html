@@ -710,8 +710,8 @@ for exp, mine in zip(expected, got):
         <pre tabindex="0"><code data-lang="toml"># The emulator we build on: every chip but the 68000 is reused as-is, and its
 # frontends run recompiled games. Keep this revision in sync with GASE_REV in
 # crates/recomp/src/project.rs (a test checks it).
-gase-core  = { git = "https://github.com/bthuner/gase", rev = "79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49" }
-gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49" }</code></pre>
+gase-core  = { git = "https://github.com/bthuner/gase", rev = "f4a73bffd68ea8a6b8d34a5a958391712bc8675f" }
+gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "f4a73bffd68ea8a6b8d34a5a958391712bc8675f" }</code></pre>
       </figure>
       <p class="caption">Leçon générale : avant d’écrire un runtime, cherchez un émulateur dont vous pouvez emprunter le bus. Le processeur est la seule pièce qu’un recompilateur remplace vraiment.</p>
 
@@ -1156,7 +1156,7 @@ fn main() -&gt; ExitCode {
         <pre tabindex="0"><code data-lang="toml">[dependencies]
 gase-recomp-runtime = { git = "https://github.com/bthuner/gase-recomp", branch = "develop" }
 # gase's frontends, at the revision the runtime uses (one gase-core).
-gase = { git = "https://github.com/bthuner/gase", rev = "79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49", default-features = false }
+gase = { git = "https://github.com/bthuner/gase", rev = "f4a73bffd68ea8a6b8d34a5a958391712bc8675f", default-features = false }
 
 [features]
 default = ["window"]
@@ -1244,6 +1244,29 @@ $ cargo run --release -- --headless --bench
       <p>La correction tient en deux lignes : après chaque accès à la zone du Z80, aux ports d’E/S ou au VDP, le processeur rattrape immédiatement l’horloge de la console, exactement comme l’interpréteur de gase. Un test unitaire, avec une fausse console dont le VDP fait attendre chaque écriture 100 cycles, échoue sans elle. Après ce changement, le KO ne cassait plus rien.</p>
       <p>Pour la prochaine fois, le jeu généré a aussi reçu un <strong>interrupteur de bissection</strong> : <code>GASE_RECOMP_INTERPRET=all</code>, ou des plages d’adresses comme <code>0-0xFFFFF</code>, fait exécuter ce code par l’interpréteur de gase alors qu’il a été recompilé. Si un bug disparaît, la routine fautive est dans la plage ; coupez-la en deux et recommencez. Une vingtaine d’essais, à partir d’une sauvegarde d’état, trouvent une routine dans une ROM de 2&nbsp;Mo.</p>
       <p class="caption">Leçon générale : un processeur recompilé vit toujours dans une machine qui le fait attendre. Comptez les attentes quand elles arrivent, pas quand ça arrange l’ordonnanceur. Et livrez un moyen de bissecter : les bugs qui comptent apparaissent sur du matériel et des jeux que vous n’avez pas.</p>
+
+      <h3 id="on-a-phone">Dans la poche : le même jeu sur Android et iOS</h3>
+      <p>La promesse de départ était « apportez votre ROM, choisissez une plateforme ». gase tournait déjà sur téléphone ; il manquait un moyen pour qu’un <em>jeu</em> soit l’application. Sur un téléphone, il n’y a pas de <code>main</code> : le système lance l’application par son propre framework, puis SDL appelle une fonction C, <code>SDL_main</code>. Le crate téléphone de gase exportait lui-même cette fonction. Le changement côté gase est donc un interrupteur : <code>gase-mobile</code> a reçu une feature <code>sdl-main</code>, active par défaut, et une fonction <code>run_game</code>. Un crate de jeu désactive la feature et exporte son propre <code>SDL_main</code>.</p>
+      <p>Chaque jeu généré porte maintenant un second crate minuscule, <code>mobile/</code>, dans le même workspace. Il réutilise <code>src/recomp/</code> par un module <code>#[path]</code> : le code du jeu n’existe toujours qu’en un exemplaire.</p>
+      <figure class="code">
+        <div class="code__bar"><span class="file">mobile/lib.rs généré</span><span class="lang">Rust</span></div>
+        <pre tabindex="0"><code data-lang="rs">#[path = "../src/recomp/mod.rs"]
+mod recomp;
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn SDL_main(argc: c_int, argv: *mut *mut c_char) -&gt; c_int {
+    gase_recomp_runtime::register(recomp::ROM_CRC32, recomp::cpu);
+    let args = unsafe { gase_mobile::args(argc, argv) };
+    gase_mobile::run_game(&amp;args, recomp::TITLE, include_bytes!("../rom.bin"))
+}</code></pre>
+      </figure>
+      <p>Trois détails en font une vraie application plutôt qu’une démo :</p>
+      <ul class="roadmap">
+        <li><span>La ROM voyage dans l’application<small>Une application ne peut lire que son propre bac à sable : la ROM est donc compilée dedans avec <code>include_bytes!</code>. Au premier lancement, <code>run_game</code> la copie dans le dossier de ROM de l’application (nom temporaire, puis renommage) et l’ouvre. Rien à choisir.</small></span><span class="chip chip--live">en place</span></li>
+        <li><span>Son propre nom et son identifiant<small>Les projets Gradle et Xcode de gase prennent le crate à construire (<code>-PgaseCrate</code>) ainsi que le nom et l’identifiant de l’application (<code>-PgaseAppId</code>, <code>GASE_APP_ID</code>) : le jeu s’installe <em>à côté</em> de gase, pas à sa place.</small></span><span class="chip chip--live">en place</span></li>
+        <li><span>Prouvé par la CI<small>La CI de gase-recomp recompile la ROM de test faite main, construit son APK avec le projet Android de gase, et vérifie le nom du paquet, le libellé, et que <code>libmain.so</code> exporte bien le <code>SDL_main</code> du jeu.</small></span><span class="chip chip--live">en place</span></li>
+      </ul>
+      <p class="caption">Leçon générale : quand un framework possède le point d’entrée, rendez ce point d’entrée remplaçable au lieu de copier le framework. Une feature et une fonction dans gase ont suffi ; chaque jeu réutilise le reste : contrôles tactiles, menus, sauvegardes d’état, projets Gradle et Xcode.</p>
 
       <h3>Deux implémentations, une leçon</h3>
       <p>La version C + Python reste dans le dépôt (<code>gase/</code>, <code>runtime/</code>, <code>tests/</code>) comme <strong>premier jet</strong> : plus courte, plus proche des recompilateurs classiques, et toujours la porte d’entrée la plus claire pour les chapitres 03 à 09. L’édition Rust, c’est là où va le projet. Lire les deux côte à côte, c’est tout l’intérêt : le pipeline — chargeur, décodeur, analyse, génération, runtime, boucle de couverture, tests différentiels — n’a pas bougé d’un pouce. Seuls ont changé le langage hôte et les épaules sur lesquelles il s’appuie.</p>

@@ -710,8 +710,8 @@ for exp, mine in zip(expected, got):
         <pre tabindex="0"><code data-lang="toml"># The emulator we build on: every chip but the 68000 is reused as-is, and its
 # frontends run recompiled games. Keep this revision in sync with GASE_REV in
 # crates/recomp/src/project.rs (a test checks it).
-gase-core  = { git = "https://github.com/bthuner/gase", rev = "79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49" }
-gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49" }</code></pre>
+gase-core  = { git = "https://github.com/bthuner/gase", rev = "f4a73bffd68ea8a6b8d34a5a958391712bc8675f" }
+gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "f4a73bffd68ea8a6b8d34a5a958391712bc8675f" }</code></pre>
       </figure>
       <p class="caption">Generic lesson: before writing a runtime, look for an emulator whose bus you can borrow. The CPU is the only part a recompiler truly replaces.</p>
 
@@ -1156,7 +1156,7 @@ fn main() -&gt; ExitCode {
         <pre tabindex="0"><code data-lang="toml">[dependencies]
 gase-recomp-runtime = { git = "https://github.com/bthuner/gase-recomp", branch = "develop" }
 # gase's frontends, at the revision the runtime uses (one gase-core).
-gase = { git = "https://github.com/bthuner/gase", rev = "79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49", default-features = false }
+gase = { git = "https://github.com/bthuner/gase", rev = "f4a73bffd68ea8a6b8d34a5a958391712bc8675f", default-features = false }
 
 [features]
 default = ["window"]
@@ -1244,6 +1244,29 @@ $ cargo run --release -- --headless --bench
       <p>The fix is two lines: after every access to the Z80 area, the I/O ports or the VDP, the CPU catches up with the console's clock right away, exactly as gase's interpreter does. A unit test with a mock console whose VDP makes every write wait 100 cycles fails without it. After that change, the knockout no longer broke anything.</p>
       <p>For the next time, the generated game also got a <strong>bisection switch</strong>: <code>GASE_RECOMP_INTERPRET=all</code>, or address ranges such as <code>0-0xFFFFF</code>, runs that code on gase's interpreter even though it was recompiled. If a bug disappears, the faulty routine is in the range; halve it and try again. About twenty tries, starting from a save state, find one routine in a 2&nbsp;MB ROM.</p>
       <p class="caption">Generic lesson: a recompiled CPU still lives inside a machine that makes it wait. Count waits when they happen, not when it suits the scheduler. And ship a way to bisect: the bugs that matter show up on hardware and games you don't have.</p>
+
+      <h3 id="on-a-phone">In your pocket: the same game on Android and iOS</h3>
+      <p>The original promise was “bring your ROM, pick a platform”. gase already ran on phones; what was missing was a way for a <em>game</em> to be the app. On a phone there is no <code>main</code>: the system starts the app through its own framework, and SDL then calls one C function, <code>SDL_main</code>. gase's phone crate exported that function itself. So the change in gase is a switch: <code>gase-mobile</code> got an <code>sdl-main</code> feature, on by default, and a <code>run_game</code> function. A game crate turns the feature off and exports its own <code>SDL_main</code>.</p>
+      <p>Every generated game now carries a second, tiny crate, <code>mobile/</code>, in the same workspace. It reuses <code>src/recomp/</code> through a <code>#[path]</code> module, so there is still only one copy of the game's code:</p>
+      <figure class="code">
+        <div class="code__bar"><span class="file">generated mobile/lib.rs</span><span class="lang">Rust</span></div>
+        <pre tabindex="0"><code data-lang="rs">#[path = "../src/recomp/mod.rs"]
+mod recomp;
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn SDL_main(argc: c_int, argv: *mut *mut c_char) -&gt; c_int {
+    gase_recomp_runtime::register(recomp::ROM_CRC32, recomp::cpu);
+    let args = unsafe { gase_mobile::args(argc, argv) };
+    gase_mobile::run_game(&amp;args, recomp::TITLE, include_bytes!("../rom.bin"))
+}</code></pre>
+      </figure>
+      <p>Three details make it a real app rather than a demo:</p>
+      <ul class="roadmap">
+        <li><span>The ROM travels inside the app<small>A phone app can only read its own sandbox, so the ROM is compiled in with <code>include_bytes!</code>. At first launch <code>run_game</code> copies it into the app's ROM folder (temporary name, then rename) and opens it. Nothing has to be picked.</small></span><span class="chip chip--live">in place</span></li>
+        <li><span>Its own name and identifier<small>gase's Gradle and Xcode projects take the crate to build (<code>-PgaseCrate</code>) plus the app's name and id (<code>-PgaseAppId</code>, <code>GASE_APP_ID</code>), so the game installs <em>next to</em> gase, not over it.</small></span><span class="chip chip--live">in place</span></li>
+        <li><span>Proved by CI<small>gase-recomp's CI recompiles the hand-made test ROM, builds its APK with gase's own Android project, and checks the package name, the label, and that <code>libmain.so</code> exports the game's <code>SDL_main</code>.</small></span><span class="chip chip--live">in place</span></li>
+      </ul>
+      <p class="caption">Generic lesson: when a framework owns the entry point, make the entry point replaceable instead of copying the framework. A feature flag and one function in gase were enough; every game reuses the rest: touch controls, menus, save states, the Gradle and Xcode projects.</p>
 
       <h3>Two implementations, one lesson</h3>
       <p>The C + Python version stays in the repository (<code>gase/</code>, <code>runtime/</code>, <code>tests/</code>) as the <strong>first draft</strong>: shorter, closer to the classic recompilers, and still the clearest way into chapters 03 to 09. The Rust edition is where the project goes. Reading both side by side is the point: the pipeline — loader, decoder, analysis, codegen, runtime, feedback loop, differential tests — did not change at all. Only the host language and the shoulders it stands on did.</p>

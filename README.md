@@ -50,9 +50,11 @@ rewind, gamepads and settings. Code the analysis missed runs on gase's
 68000 interpreter, so the game keeps playing, and its address goes to
 `gase_missing.txt`; run `recomp` again and it becomes Rust too.
 
-Desktop (Linux, macOS, Windows) and headless work today. Android, iOS and
-the browser already run gase's same shell; their entry points still need a
-hook so a game crate can register its code (next step).
+Desktop (Linux, macOS, Windows), headless, **Android and iOS**. Every
+generated game also has a `mobile/` crate: the same game as a phone app,
+with its own `SDL_main`, the ROM built in, and gase's touch controls and
+menus. gase's own Android and iOS projects build it (the commands are in
+the game's `BUILD.md`; CI builds the test ROM's APK). The browser is next.
 
 | crate | what you learn there |
 |-------|----------------------|

@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "gase-core"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49#79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49"
+source = "git+https://github.com/bthuner/gase?rev=f4a73bffd68ea8a6b8d34a5a958391712bc8675f#f4a73bffd68ea8a6b8d34a5a958391712bc8675f"
 dependencies = [
  "gase-m68k",
  "gase-savestate",
@@ -18,7 +18,7 @@ dependencies = [
 [[package]]
 name = "gase-m68k"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49#79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49"
+source = "git+https://github.com/bthuner/gase?rev=f4a73bffd68ea8a6b8d34a5a958391712bc8675f#f4a73bffd68ea8a6b8d34a5a958391712bc8675f"
 dependencies = [
  "gase-savestate",
 ]
@@ -59,12 +59,12 @@ dependencies = [
 [[package]]
 name = "gase-savestate"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49#79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49"
+source = "git+https://github.com/bthuner/gase?rev=f4a73bffd68ea8a6b8d34a5a958391712bc8675f#f4a73bffd68ea8a6b8d34a5a958391712bc8675f"
 
 [[package]]
 name = "gase-sound"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49#79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49"
+source = "git+https://github.com/bthuner/gase?rev=f4a73bffd68ea8a6b8d34a5a958391712bc8675f#f4a73bffd68ea8a6b8d34a5a958391712bc8675f"
 dependencies = [
  "gase-savestate",
 ]
@@ -72,7 +72,7 @@ dependencies = [
 [[package]]
 name = "gase-vdp"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49#79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49"
+source = "git+https://github.com/bthuner/gase?rev=f4a73bffd68ea8a6b8d34a5a958391712bc8675f#f4a73bffd68ea8a6b8d34a5a958391712bc8675f"
 dependencies = [
  "gase-savestate",
 ]
@@ -80,7 +80,7 @@ dependencies = [
 [[package]]
 name = "gase-z80"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49#79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49"
+source = "git+https://github.com/bthuner/gase?rev=f4a73bffd68ea8a6b8d34a5a958391712bc8675f#f4a73bffd68ea8a6b8d34a5a958391712bc8675f"
 dependencies = [
  "gase-savestate",
 ]
@@ -88,4 +88,4 @@ dependencies = [
 [[package]]
 name = "gase-zip"
 version = "0.2.0"
-source = "git+https://github.com/bthuner/gase?rev=79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49#79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49"
+source = "git+https://github.com/bthuner/gase?rev=f4a73bffd68ea8a6b8d34a5a958391712bc8675f#f4a73bffd68ea8a6b8d34a5a958391712bc8675f"

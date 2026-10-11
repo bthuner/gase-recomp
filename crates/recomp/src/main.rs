@@ -3,7 +3,7 @@
 //! ```text
 //! gase-recomp info   ROM
 //! gase-recomp disasm ROM [--function HEX] [--entries FILE]
-//! gase-recomp recomp ROM -o DIR [--platform desktop|headless] [--entries FILE] [--runtime PATH]
+//! gase-recomp recomp ROM -o DIR [--platform desktop|android|ios|headless] [--entries FILE] [--runtime PATH]
 //! ```
 
 use std::collections::BTreeMap;
@@ -21,7 +21,7 @@ gase-recomp: statically recompile a Sega Mega Drive / Genesis ROM to Rust
 usage:
   gase-recomp info   ROM
   gase-recomp disasm ROM [--function HEX] [--entries FILE]
-  gase-recomp recomp ROM -o DIR [--platform desktop|headless] [--entries FILE] [--runtime PATH]
+  gase-recomp recomp ROM -o DIR [--platform desktop|android|ios|headless] [--entries FILE] [--runtime PATH]
                      [--chunk N] [--max-block N]   code shape (see the making-of)
 ";
 
@@ -147,12 +147,14 @@ fn run(args: &[String]) -> Result<(), String> {
             for (a, why) in &program.rejected_entries {
                 println!("      ! entry ${a:06X} rejected: {why}");
             }
+            // Every project builds for all of them; the platform picks the
+            // desktop default (window or not) and what we print at the end.
             let desktop = match platform.as_str() {
-                "desktop" => true,
+                "desktop" | "android" | "ios" => true,
                 "headless" => false,
                 p => {
                     return Err(format!(
-                        "unknown platform {p:?} (desktop or headless; android, ios and web come next)"
+                        "unknown platform {p:?} (desktop, android, ios or headless)"
                     ));
                 }
             };
@@ -167,9 +169,15 @@ fn run(args: &[String]) -> Result<(), String> {
                 out.join("src/recomp").display()
             );
             println!(
-                "[4/4] project   {platform} crate written to {}: cd there and `cargo run --release`",
+                "[4/4] project   crate written to {}: cd there and `cargo run --release`",
                 out.display()
             );
+            if matches!(platform.as_str(), "android" | "ios") {
+                println!(
+                    "      {platform}: see \"On a phone\" in {}",
+                    out.join("BUILD.md").display()
+                );
+            }
         }
         _ => return Err(USAGE.into()),
     }
