@@ -31,7 +31,7 @@ use crate::codegen::{Options, generate};
 /// The gase revision every generated crate uses. It must be the one the
 /// runtime is built against (the root `Cargo.toml`), so that Cargo builds
 /// a single gase-core and the game's registration reaches gase's consoles.
-pub const GASE_REV: &str = "0cf61ff8bb7a55a57b5473845720403489b5e780";
+pub const GASE_REV: &str = "9988d7666cc7be7f4b51248a7b2fef2b59b35aad";
 
 /// Where the generated crate finds the runtime.
 #[derive(Clone, Debug)]

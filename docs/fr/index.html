@@ -710,8 +710,8 @@ for exp, mine in zip(expected, got):
         <pre tabindex="0"><code data-lang="toml"># The emulator we build on: every chip but the 68000 is reused as-is, and its
 # frontends run recompiled games. Keep this revision in sync with GASE_REV in
 # crates/recomp/src/project.rs (a test checks it).
-gase-core  = { git = "https://github.com/bthuner/gase", rev = "0cf61ff8bb7a55a57b5473845720403489b5e780" }
-gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "0cf61ff8bb7a55a57b5473845720403489b5e780" }</code></pre>
+gase-core  = { git = "https://github.com/bthuner/gase", rev = "9988d7666cc7be7f4b51248a7b2fef2b59b35aad" }
+gase-m68k  = { git = "https://github.com/bthuner/gase", rev = "9988d7666cc7be7f4b51248a7b2fef2b59b35aad" }</code></pre>
       </figure>
       <p class="caption">Leçon générale : avant d’écrire un runtime, cherchez un émulateur dont vous pouvez emprunter le bus. Le processeur est la seule pièce qu’un recompilateur remplace vraiment.</p>
 
@@ -1156,7 +1156,7 @@ fn main() -&gt; ExitCode {
         <pre tabindex="0"><code data-lang="toml">[dependencies]
 gase-recomp-runtime = { git = "https://github.com/bthuner/gase-recomp", branch = "develop" }
 # gase's frontends, at the revision the runtime uses (one gase-core).
-gase = { git = "https://github.com/bthuner/gase", rev = "0cf61ff8bb7a55a57b5473845720403489b5e780", default-features = false }
+gase = { git = "https://github.com/bthuner/gase", rev = "9988d7666cc7be7f4b51248a7b2fef2b59b35aad", default-features = false }
 
 [features]
 default = ["window"]
