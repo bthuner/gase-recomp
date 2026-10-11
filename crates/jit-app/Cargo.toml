@@ -17,8 +17,8 @@ gase-recomp-remote = { path = "../remote" }
 gase-core.workspace = true
 # gase's frontends (desktop) and its phone shell, without its own SDL_main:
 # lib.rs exports ours on Android. Same revision as the rest (one gase-core).
-gase = { git = "https://github.com/bthuner/gase", rev = "39c3ac80784760a78b211f3f7739a1920bb11a35", default-features = false }
-gase-mobile = { git = "https://github.com/bthuner/gase", rev = "39c3ac80784760a78b211f3f7739a1920bb11a35", default-features = false }
+gase = { git = "https://github.com/bthuner/gase", rev = "0cf61ff8bb7a55a57b5473845720403489b5e780", default-features = false }
+gase-mobile = { git = "https://github.com/bthuner/gase", rev = "0cf61ff8bb7a55a57b5473845720403489b5e780", default-features = false }
 
 # Only named for `static-sdl` below: gase's own SDL2, with more features.
 sdl2 = { version = "0.37", optional = true }
