@@ -6,12 +6,19 @@
 //!   rom.bin          your ROM: graphics, sound and data are read from it
 //!   src/main.rs      registers the recompiled code, then runs gase
 //!   src/recomp/      the generated code (mod.rs + part_NNN.rs)
+//!   mobile/          the same game as an Android/iOS app (its SDL_main)
 //!   BUILD.md
 //! ```
 //!
 //! The game *is* gase with one more registered CPU: same window, menus,
 //! save states, rewind and controls. The crate is a workspace of its own,
 //! so it can live anywhere, even inside this repository.
+//!
+//! On a phone there is no `main`: the system starts the app, and SDL calls
+//! a C function, `SDL_main`. `mobile/` is a second crate in the same
+//! workspace that exports one: it registers the same `src/recomp/` code,
+//! embeds the ROM, and hands over to gase's phone shell (`gase-mobile`).
+//! gase's own Android and iOS projects build it into an app.
 
 use std::fs;
 use std::io;
@@ -23,7 +30,7 @@ use crate::codegen::{Options, generate};
 /// The gase revision every generated crate uses. It must be the one the
 /// runtime is built against (the root `Cargo.toml`), so that Cargo builds
 /// a single gase-core and the game's registration reaches gase's consoles.
-pub const GASE_REV: &str = "79d6b1c5cfab02eb200f2077c4aa9dc2bd81ce49";
+pub const GASE_REV: &str = "f4a73bffd68ea8a6b8d34a5a958391712bc8675f";
 
 /// Where the generated crate finds the runtime.
 #[derive(Clone, Debug)]
@@ -95,15 +102,17 @@ pub fn write_project(
     }
     fs::write(out.join("rom.bin"), &program.rom.data)?;
     let default = if desktop { "[\"window\"]" } else { "[]" };
+    let gase_git = format!("git = \"https://github.com/bthuner/gase\", rev = \"{GASE_REV}\"");
     fs::write(
         out.join("Cargo.toml"),
         format!(
             "# \"{title}\", recompiled by gase-recomp. Regenerate rather than edit.\n\
              [package]\nname = \"{id}\"\nversion = \"0.1.0\"\nedition = \"2024\"\npublish = false\n\n\
-             # A workspace of its own: the crate can live anywhere.\n[workspace]\n\n\
+             # A workspace of its own: the crate can live anywhere. `mobile` is\n\
+             # the same game as a phone app (see BUILD.md).\n[workspace]\nmembers = [\"mobile\"]\n\n\
              [dependencies]\ngase-recomp-runtime = {}\n\
              # gase's frontends, at the revision the runtime uses (one gase-core).\n\
-             gase = {{ git = \"https://github.com/bthuner/gase\", rev = \"{GASE_REV}\", default-features = false }}\n\n\
+             gase = {{ {gase_git}, default-features = false }}\n\n\
              [features]\ndefault = {default}\n\
              # gase's window, sound and gamepads (needs the SDL2 development package).\n\
              window = [\"gase/sdl\"]\n\n\
@@ -115,7 +124,31 @@ pub fn write_project(
     )?;
     fs::create_dir_all(out.join("src"))?;
     fs::write(out.join("src/main.rs"), MAIN.replace("@TITLE@", title))?;
-    fs::write(out.join("BUILD.md"), BUILD.replace("@TITLE@", title))?;
+    fs::create_dir_all(out.join("mobile"))?;
+    fs::write(
+        out.join("mobile/Cargo.toml"),
+        format!(
+            "# \"{title}\" as an Android/iOS app. Regenerate rather than edit.\n\
+             [package]\nname = \"{id}-mobile\"\nversion = \"0.1.0\"\nedition = \"2024\"\npublish = false\n\n\
+             # gase's phone build turns this into libmain.so (Android) or a static\n\
+             # library (iOS) with `cargo rustc --crate-type …`.\n\
+             [lib]\npath = \"lib.rs\"\n\n\
+             [dependencies]\ngase-recomp-runtime = {}\n\
+             # gase's phone shell, without its own SDL_main: ours is in lib.rs.\n\
+             gase-mobile = {{ {gase_git}, default-features = false }}\n",
+            runtime.toml()
+        ),
+    )?;
+    fs::write(out.join("mobile/lib.rs"), MOBILE.replace("@TITLE@", title))?;
+    fs::write(
+        out.join("BUILD.md"),
+        BUILD
+            .replace("@TITLE@", title)
+            .replace("@ID@", &id)
+            // iOS bundle identifiers allow letters, digits, '-' and '.'.
+            .replace("@IOS_ID@", &id.replace('_', "-"))
+            .replace("@GASE_REV@", GASE_REV),
+    )?;
     Ok(files.len())
 }
 
@@ -173,6 +206,34 @@ fn default_rom() -> Option<PathBuf> {
 }
 "#;
 
+const MOBILE: &str = r#"//! "@TITLE@" as an Android or iOS app.
+//!
+//! A phone starts an app through its own framework, and SDL then calls the
+//! C function `SDL_main` (see gase's mobile/README.md). This one registers
+//! the recompiled code, exactly like `src/main.rs` does on a desktop, and
+//! runs gase's phone shell with the ROM built into the app.
+
+#[allow(clippy::all, unused_parens, unused_imports, dead_code)]
+#[path = "../src/recomp/mod.rs"]
+mod recomp;
+
+use std::ffi::{c_char, c_int};
+
+/// The app's entry point, called by SDL.
+///
+/// # Safety
+///
+/// SDL passes C's `argc` and `argv`.
+#[allow(non_snake_case)] // the name is SDL's
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn SDL_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
+    gase_recomp_runtime::register(recomp::ROM_CRC32, recomp::cpu);
+    // SAFETY: as promised by our caller.
+    let args = unsafe { gase_mobile::args(argc, argv) };
+    gase_mobile::run_game(&args, recomp::TITLE, include_bytes!("../rom.bin"))
+}
+"#;
+
 const BUILD: &str = r#"# @TITLE@
 
 Generated by **gase-recomp**: the game's 68000 code, translated to Rust and
@@ -197,6 +258,40 @@ going, and the address is appended to `gase_missing.txt`. Run
 `gase-recomp recomp <rom> -o <this folder>` again: the file is picked up and
 those addresses become recompiled functions. This is the *coverage feedback
 loop* described in the making-of.
+
+## On a phone
+
+`mobile/` is the same game as an app: it exports `SDL_main`, registers the
+same recompiled code and carries `rom.bin` inside. gase's own Android and
+iOS projects build it. Get gase at the revision this game uses:
+
+```sh
+git clone https://github.com/bthuner/gase && git -C gase checkout @GASE_REV@
+```
+
+**Android** (Android SDK + NDK 27, `rustup target add aarch64-linux-android`):
+
+```sh
+gradle -p gase/mobile/android assembleRelease -PgaseAbis=arm64-v8a \
+    -PgaseCrate="$PWD/mobile/Cargo.toml:@ID@-mobile" \
+    -PgaseAppId=io.github.gase_recomp.@ID@ -PgaseAppName="@TITLE@"
+adb install gase/mobile/android/app/build/outputs/apk/release/app-release.apk
+```
+
+**iOS** (a Mac with Xcode and XcodeGen, `rustup target add aarch64-apple-ios
+aarch64-apple-ios-sim`):
+
+```sh
+GASE_MOBILE_MANIFEST="$PWD/mobile/Cargo.toml" GASE_MOBILE_PACKAGE=@ID@-mobile \
+GASE_APP_NAME="@TITLE@" GASE_APP_ID=io.github.gase-recomp.@IOS_ID@ \
+    gase/mobile/ios/build.sh
+```
+
+The app installs next to gase (its own identifier), opens the game at
+start, and has gase's touch controls, menus and save states. Each
+processor family (ABI) compiles the game again, so build only the one your
+phone needs (`arm64-v8a` for nearly all of them). See gase's
+`mobile/README.md` for signing, devices and troubleshooting.
 
 ## A bug the emulator does not have
 

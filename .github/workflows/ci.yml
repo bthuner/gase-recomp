@@ -26,6 +26,65 @@ jobs:
         run: |
           for seed in 2 3 4; do GASE_DIFFTEST_SEED=$seed cargo test -p gase-recomp-difftest; done
 
+  android:
+    name: Rust edition, Android APK of the test ROM
+    runs-on: ubuntu-latest
+    env:
+      # Keep equal to ndkVersion in gase's mobile/android/app/build.gradle.
+      NDK_VERSION: 27.2.12479018
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: android
+      - name: Android SDK packages (NDK, platform, build tools)
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
+            "ndk;$NDK_VERSION" "platforms;android-35" "build-tools;35.0.0" > /dev/null
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Recompile the end-to-end test ROM
+        run: |
+          cargo test -p gase-recomp-e2e --no-run
+          rom=$(ls -t target/debug/build/gase-recomp-e2e-*/out/rom.bin | head -1)
+          cargo run --release -p gase-recomp -- recomp "$rom" -o out/game --platform android
+      - name: gase at the revision the game uses
+        run: |
+          rev=$(sed -n 's/^pub const GASE_REV: &str = "\(.*\)";/\1/p' crates/recomp/src/project.rs)
+          git clone https://github.com/bthuner/gase out/gase
+          git -C out/gase checkout "$rev"
+      - name: Build the game's APK (one ABI)
+        run: |
+          gradle -p out/gase/mobile/android assembleDebug --stacktrace -PgaseAbis=arm64-v8a \
+            -PgaseCrate="$PWD/out/game/mobile/Cargo.toml:gase_test_rom-mobile" \
+            -PgaseAppId=io.github.gase_recomp.gase_test_rom -PgaseAppName="GASE TEST ROM"
+      - name: Check the APK
+        run: |
+          apk=out/gase/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          ls -l "$apk"
+          # Its own app, next to gase.
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "$apk" > badging.txt
+          grep -E "^package:|^application-label:" badging.txt
+          grep -q "package: name='io.github.gase_recomp.gase_test_rom'" badging.txt
+          grep -q "application-label:'GASE TEST ROM'" badging.txt
+          # The game's SDL_main, and its recompiled code, in libmain.so.
+          unzip -o -q "$apk" lib/arm64-v8a/libmain.so -d /tmp/apk
+          nm="$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
+          "$nm" -D --defined-only /tmp/apk/lib/arm64-v8a/libmain.so | grep -w SDL_main
+      - uses: actions/upload-artifact@v4
+        with:
+          name: recompiled-test-rom-apk
+          path: out/gase/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+
   test:
     name: C edition (Python + C, Linux)
     runs-on: ubuntu-latest

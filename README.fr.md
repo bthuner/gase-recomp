@@ -51,10 +51,12 @@ donc ceux de gase. Le code que l'analyse n'a pas trouvé tourne sur
 l'interpréteur 68000 de gase : le jeu continue, et l'adresse est notée dans
 `gase_missing.txt` ; relancez `recomp` et elle devient du Rust à son tour.
 
-Ordinateur (Linux, macOS, Windows) et mode sans fenêtre fonctionnent
-aujourd'hui. Android, iOS et le navigateur utilisent déjà la même coque
-gase ; il reste à leur ajouter un point d'entrée où un jeu enregistre son
-code (prochaine étape).
+Ordinateur (Linux, macOS, Windows), mode sans fenêtre, **Android et iOS**.
+Chaque jeu généré a aussi un crate `mobile/` : le même jeu en application
+de téléphone, avec son propre `SDL_main`, la ROM intégrée, et les contrôles
+tactiles et menus de gase. Les projets Android et iOS de gase le
+construisent (les commandes sont dans le `BUILD.md` du jeu ; la CI
+construit l'APK de la ROM de test). Le navigateur viendra ensuite.
 
 ```sh
 cargo test --workspace     # décodeur, tests différentiels, bout en bout
