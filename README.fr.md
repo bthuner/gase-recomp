@@ -120,9 +120,13 @@ passe et joué dans gase avec des graphismes identiques à l'émulateur (build
 release d'environ 5 minutes).
 Deuxième : **Aladdin**, recompilé en une passe (build release en moins de
 4 minutes) et entièrement jouable. Quelques défauts de sprites et de décor,
-absents de l'émulateur, venaient de durées d'instructions estimées ; elles
-sont maintenant mesurées sur le 68000 de gase et vérifiées au cycle près
-par le test différentiel (making-of, chapitre 10).
+absents de l'émulateur, venaient du temps : des durées d'instructions
+estimées (maintenant mesurées sur le 68000 de gase et vérifiées au cycle
+près par le test différentiel) et des attentes matérielles comptées trop
+tard (maintenant comptées tout de suite). Les défauts ne se reproduisent
+plus (making-of, chapitre 10). Un interrupteur de bissection,
+`GASE_RECOMP_INTERPRET`, aide à trouver une routine mal traduite dans un
+jeu qu'on n'a pas.
 
 Fonctionne aujourd'hui :
 - le jeu d'instructions 68000 complet, avec le décodeur comparé à Musashi sur les 65 536 opcodes ;
