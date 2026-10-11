@@ -69,6 +69,22 @@ translate yet goes through gase's interpreter. Next: AArch64, then Android.
 | [`crates/jit`](crates/jit/src/lib.rs) | a JIT: 68000 code to x86-64 machine code while the game runs, for any ROM (regions, flags mapped onto x86's, an interpreter escape hatch) |
 | [`crates/e2e`](crates/e2e/src/lib.rs) | a hand-assembled ROM, recompiled and played on a gase console: feedback loop, same frames as the interpreter, save states |
 
+### The studio: pick a ROM, press Build, get an APK
+
+```sh
+cargo run --release -p gase-recomp-studio            # the window
+cargo run --release -p gase-recomp-studio -- --check # what is installed, what is missing
+cargo run --release -p gase-recomp-studio -- --cli game.md   # same, without a window
+```
+
+A window around the whole Android build. Pick a ROM, check the app's name
+and identifier, press **Build the APK**. It recompiles the ROM, fetches gase
+at the right revision, builds with gase's Android project and puts
+`<game>.apk` next to the project, with a button to install it on a phone
+over USB (`adb`). The list on the right shows what this computer is missing
+(Android SDK, NDK, Java, Gradle, CMake, Rust's Android target) and fixes
+what one command can fix. Linux and macOS; on Windows, use WSL.
+
 ```sh
 cargo test --workspace                       # decoder, differential and end-to-end tests
 GASE_DIFFTEST_SEED=7 cargo test -p gase-recomp-difftest

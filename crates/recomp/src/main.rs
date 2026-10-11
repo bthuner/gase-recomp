@@ -12,7 +12,7 @@ use std::process::ExitCode;
 
 use gase_recomp::analysis::analyze;
 use gase_recomp::codegen::Options;
-use gase_recomp::project::{RuntimeSource, write_project};
+use gase_recomp::project::{RuntimeSource, parse_entries, write_project};
 use gase_recomp::rom::{Rom, vector_name};
 
 const USAGE: &str = "\
@@ -24,26 +24,6 @@ usage:
   gase-recomp recomp ROM -o DIR [--platform desktop|android|ios|headless] [--entries FILE] [--runtime PATH]
                      [--chunk N] [--max-block N]   code shape (see the making-of)
 ";
-
-/// Entry file: one hex address per line, optional name, `#` comments.
-fn parse_entries(path: &Path, into: &mut BTreeMap<u32, String>) -> Result<(), String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    for line in text.lines() {
-        let line = line.split('#').next().unwrap_or("").trim();
-        let mut parts = line.split_whitespace();
-        let Some(addr) = parts.next() else { continue };
-        let a = u32::from_str_radix(addr.trim_start_matches("0x").trim_start_matches('$'), 16)
-            .map_err(|e| format!("{}: bad address {addr:?}: {e}", path.display()))?
-            & 0xFF_FFFF;
-        into.insert(
-            a,
-            parts
-                .next()
-                .map_or_else(|| format!("sub_{a:06X}"), str::to_string),
-        );
-    }
-    Ok(())
-}
 
 fn run(args: &[String]) -> Result<(), String> {
     let (cmd, rest) = args.split_first().ok_or(USAGE)?;
