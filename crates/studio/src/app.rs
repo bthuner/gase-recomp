@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use eframe::egui::{self, Color32, RichText};
 
-use crate::pipeline::{self, ABIS, Check, Event, Job, RomInfo, Stage};
+use crate::pipeline::{self, ABIS, Check, Event, Job, RomInfo, Stage, Target};
 
 const ACCENT: Color32 = Color32::from_rgb(0x4F, 0xC3, 0xF7);
 const GOOD: Color32 = Color32::from_rgb(0x66, 0xBB, 0x6A);
@@ -30,6 +30,7 @@ enum Progress {
 
 #[derive(Debug)]
 pub struct Studio {
+    target: Target,
     rom: Option<RomInfo>,
     rom_error: Option<String>,
     app_name: String,
@@ -46,13 +47,14 @@ pub struct Studio {
 
 impl Studio {
     #[must_use]
-    pub fn new(cc: &eframe::CreationContext<'_>, rom: Option<PathBuf>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, rom: Option<PathBuf>, target: Target) -> Self {
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
         cc.egui_ctx.style_mut(|s| {
             s.spacing.item_spacing = egui::vec2(8.0, 8.0);
             s.spacing.button_padding = egui::vec2(12.0, 6.0);
         });
         let mut studio = Self {
+            target,
             rom: None,
             rom_error: None,
             app_name: String::new(),
@@ -84,7 +86,7 @@ impl Studio {
     }
 
     fn refresh_checks(&mut self) {
-        self.checks = pipeline::check_tools(&self.chosen_abis());
+        self.checks = pipeline::check_tools(self.target, &self.chosen_abis());
     }
 
     fn load_rom(&mut self, path: PathBuf) {
@@ -108,6 +110,7 @@ impl Studio {
     fn start_build(&mut self) {
         let Some(rom) = &self.rom else { return };
         let job = Job {
+            target: self.target,
             rom: rom.path.clone(),
             out: self.out.clone(),
             app_name: self.app_name.trim().to_string(),
@@ -178,7 +181,9 @@ impl Studio {
                         self.load_rom(path);
                     }
                 }
-                ui.label(RichText::new("Use a ROM you own: it is built into the app.").color(DIM));
+                ui.label(
+                    RichText::new("Use a ROM you own: it goes into what you build.").color(DIM),
+                );
             });
             if let Some(e) = &self.rom_error {
                 ui.colored_label(BAD, e);
@@ -206,42 +211,32 @@ impl Studio {
 
     fn app_card(&mut self, ui: &mut egui::Ui) {
         let enabled = self.rom.is_some() && !self.busy();
-        card(ui, "2", "The app", |ui| {
+        card(ui, "2", "What to build", |ui| {
+            ui.add_enabled_ui(!self.busy(), |ui| {
+                ui.horizontal(|ui| {
+                    let before = self.target;
+                    ui.selectable_value(&mut self.target, Target::Desktop, "This computer");
+                    ui.selectable_value(&mut self.target, Target::Android, "Android app (APK)");
+                    if self.target != before {
+                        self.progress = Progress::Idle;
+                        self.refresh_checks();
+                    }
+                });
+            });
             ui.add_enabled_ui(enabled, |ui| {
                 egui::Grid::new("app").num_columns(2).show(ui, |ui| {
-                    ui.label(RichText::new("Name").color(DIM));
-                    ui.add(egui::TextEdit::singleline(&mut self.app_name).desired_width(320.0));
-                    ui.end_row();
-                    ui.label(RichText::new("Identifier").color(DIM));
-                    ui.add(egui::TextEdit::singleline(&mut self.app_id).desired_width(320.0));
-                    ui.end_row();
-                    ui.label("");
-                    match pipeline::check_app_id(self.app_id.trim()) {
-                        Ok(()) => ui.label(
-                            RichText::new("installs as its own app, next to gase").color(DIM),
-                        ),
-                        Err(e) => ui.colored_label(BAD, e),
-                    };
-                    ui.end_row();
-                    ui.label(RichText::new("Processors").color(DIM));
-                    ui.horizontal(|ui| {
-                        let mut changed = false;
-                        for (abi, on) in &mut self.abis {
-                            changed |= ui.checkbox(on, *abi).changed();
-                        }
-                        if changed {
-                            self.refresh_checks();
-                        }
-                    });
-                    ui.end_row();
-                    ui.label("");
-                    ui.label(
-                        RichText::new(
-                            "arm64-v8a runs on nearly every phone; each one compiles the game again",
-                        )
-                        .color(DIM),
-                    );
-                    ui.end_row();
+                    if self.target == Target::Android {
+                        self.android_fields(ui);
+                    } else {
+                        ui.label(RichText::new("What").color(DIM));
+                        ui.label(
+                            RichText::new(
+                                "gase with the game's code compiled in: same window, menus and save states",
+                            )
+                            .color(DIM),
+                        );
+                        ui.end_row();
+                    }
                     ui.label(RichText::new("Folder").color(DIM));
                     path_label(ui, &self.out);
                     ui.end_row();
@@ -250,16 +245,53 @@ impl Studio {
         });
     }
 
+    fn android_fields(&mut self, ui: &mut egui::Ui) {
+        ui.label(RichText::new("Name").color(DIM));
+        ui.add(egui::TextEdit::singleline(&mut self.app_name).desired_width(320.0));
+        ui.end_row();
+        ui.label(RichText::new("Identifier").color(DIM));
+        ui.add(egui::TextEdit::singleline(&mut self.app_id).desired_width(320.0));
+        ui.end_row();
+        ui.label("");
+        match pipeline::check_app_id(self.app_id.trim()) {
+            Ok(()) => ui.label(RichText::new("installs as its own app, next to gase").color(DIM)),
+            Err(e) => ui.colored_label(BAD, e),
+        };
+        ui.end_row();
+        ui.label(RichText::new("Processors").color(DIM));
+        ui.horizontal(|ui| {
+            let mut changed = false;
+            for (abi, on) in &mut self.abis {
+                changed |= ui.checkbox(on, *abi).changed();
+            }
+            if changed {
+                self.refresh_checks();
+            }
+        });
+        ui.end_row();
+        ui.label("");
+        ui.label(
+            RichText::new("arm64-v8a runs on nearly every phone; each one compiles the game again")
+                .color(DIM),
+        );
+        ui.end_row();
+    }
+
     fn build_card(&mut self, ui: &mut egui::Ui) {
         let tools_ok = self.checks.iter().all(|c| c.ok);
+        let android_ok =
+            pipeline::check_app_id(self.app_id.trim()).is_ok() && !self.chosen_abis().is_empty();
         let ready = self.rom.is_some()
             && !self.busy()
             && tools_ok
-            && pipeline::check_app_id(self.app_id.trim()).is_ok()
-            && !self.chosen_abis().is_empty();
+            && (self.target == Target::Desktop || android_ok);
+        let label = match self.target {
+            Target::Android => "Build the APK",
+            Target::Desktop => "Build the game",
+        };
         card(ui, "3", "Build", |ui| {
             ui.horizontal(|ui| {
-                let button = egui::Button::new(RichText::new("Build the APK").size(18.0).strong())
+                let button = egui::Button::new(RichText::new(label).size(18.0).strong())
                     .fill(if ready {
                         ACCENT.gamma_multiply(0.6)
                     } else {
@@ -280,7 +312,7 @@ impl Studio {
                 Progress::Running(s) => Some(*s),
                 _ => None,
             };
-            for stage in Stage::ALL {
+            for &stage in self.target.stages() {
                 let passed = matches!(self.progress, Progress::Done(_))
                     || current.is_some_and(|c| stage < c);
                 let color = if passed {
@@ -310,9 +342,32 @@ impl Studio {
                     let apk = apk.clone();
                     ui.horizontal(|ui| {
                         dot(ui, GOOD);
-                        ui.label(RichText::new("Your app is ready:").color(GOOD).strong());
+                        let ready = match self.target {
+                            Target::Android => "Your app is ready:",
+                            Target::Desktop => "Your game is ready:",
+                        };
+                        ui.label(RichText::new(ready).color(GOOD).strong());
                         path_label(ui, &apk);
                     });
+                    if self.target == Target::Desktop {
+                        ui.horizontal(|ui| {
+                            let play = egui::Button::new(RichText::new("Play").size(18.0).strong())
+                                .fill(GOOD.gamma_multiply(0.5))
+                                .min_size(egui::vec2(120.0, 36.0));
+                            if ui.add(play).clicked() {
+                                if let Err(e) = pipeline::play(&apk) {
+                                    self.log.push(format!("error: {e}"));
+                                    self.show_log = true;
+                                }
+                            }
+                            if ui.button("Open the folder").clicked() {
+                                if let Some(dir) = apk.parent() {
+                                    open_folder(dir);
+                                }
+                            }
+                        });
+                        return;
+                    }
                     ui.horizontal(|ui| {
                         if ui.button("Open the folder").clicked() {
                             if let Some(dir) = apk.parent() {
@@ -419,7 +474,12 @@ impl eframe::App for Studio {
                         .color(ACCENT),
                 );
                 ui.label(RichText::new("studio").size(22.0));
-                ui.label(RichText::new("pick a ROM · press Build · get an Android app").color(DIM));
+                ui.label(
+                    RichText::new(
+                        "pick a ROM · press Build · play it natively, here or on Android",
+                    )
+                    .color(DIM),
+                );
             });
             ui.add_space(4.0);
         });
