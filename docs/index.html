@@ -1213,6 +1213,32 @@ $ cargo run --release -- --headless --bench
       <p>One recompilation was enough to play it, and the picture matched the same ROM running on gase's interpreter. The release build took a good five minutes — half the ten minutes of the synthetic benchmark above, which is no surprise: real code is mostly moves, compares and branches, far lighter than random instructions full of BCD, divisions and rotates through X.</p>
       <p class="caption">Generic lesson: benchmark with a pessimistic synthetic workload to decide whether an approach can work at all, then let the first real program tell you how it actually behaves.</p>
 
+      <h3 id="aladdin">Second game: Aladdin, and an estimate that was not enough</h3>
+      <p>Then a commercial game: <strong>Aladdin</strong>, the 1993 Virgin platformer, famous for its hand-drawn animation, which it streams into video memory frame after frame. One pass of <code>recomp</code>, a release build in <strong>under four minutes</strong>, and the game was <strong>fully playable</strong>. Almost right: the genie-lamp health meter sometimes showed pieces of a guard's sword instead of smoke, and now and then a column of the background turned into a jumble of tiles. The same ROM on gase's interpreter: clean. Sonic&nbsp;1, recompiled the same way: clean on its first two levels.</p>
+      <ul class="figures full" aria-label="Aladdin">
+        <li><b>1 pass</b><span>of <code>gase-recomp recomp</code></span></li>
+        <li><b>&lt; 4 min</b><span>release build</span></li>
+        <li><b>playable</b><span>from start to end of level</span></li>
+        <li><b>≈ 11 %</b><span>too fast: our cycle estimate, measured</span></li>
+      </ul>
+      <p>When only the CPU is different and the picture breaks, suspect <strong>time</strong>. Recompiled code has no clock: each instruction adds its cycle count to <code>cx.cycles</code>, and that number decides when the rest of the console catches up — when a scanline is drawn, when VBlank fires, when the game's DMA uploads land. Ours was an <em>estimate</em> (two cycles per word, a few more per memory operand), written early on, above a comment that said “we only need about right”. Measured against gase's 68000 on every opcode, it was about right <em>on average</em> and wrong almost everywhere: <code>moveq</code> 6 instead of 4, <code>lea</code> 17 instead of 8, <code>addq.l</code> 13 instead of 19, about 11&nbsp;% too fast overall. Sonic forgives that. Aladdin, which fills VBlank with graphics uploads to the last cycle, does not.</p>
+      <p>The fix follows the rule of this whole project: <strong>don't model what you can measure</strong>. The generator now runs every instruction once, with its real extension words, on gase's interpreter in a little sandbox, and keeps the cycle count it reports. The few timings that depend on run-time values are split into a measured part and a part the generated code adds:</p>
+      <figure class="code">
+        <div class="code__bar"><span class="file">crates/recomp/src/m68k/timing.rs</span><span class="lang">Rust</span></div>
+        <pre tabindex="0"><code data-lang="rs">match ins.mnemonic {
+    // one measurement per outcome: taken or not
+    "bcc" | "scc" =&gt; { /* run with flags that fail, then pass */ }
+    // condition true / loop / counter exhausted
+    "dbcc" =&gt; { /* three runs */ }
+    // operand fetch only: the runtime adds the division
+    "divu" | "divs" | "mulu" | "muls" =&gt; { /* ... */ }
+    // shifts by Dn run with a count of 0: + 2 per bit at run time
+    _ =&gt; ins.cycles = run(ins.addr, &amp;words, 0, None),
+}</code></pre>
+      </figure>
+      <p>And the differential test got one more column. It already compared registers, flags and memory after thousands of random instruction sequences; it now compares the <strong>number of cycles</strong> too, and it must be exactly the interpreter's. The first run of that test found what the estimate had hidden: CHK's two trap paths, the extra 2 cycles of BSET/BCLR/BCHG on bits 16–31, an immediate divisor counted twice. Each is a line in the generator now, and the test passes on every seed we tried.</p>
+      <p class="caption">Generic lesson: “about right” is a debt. Timing errors don't crash anything; they move work across a deadline the game relies on, and only the most demanding program will show you. Turn the estimate into a measurement, and put the measurement under test.</p>
+
       <h3>Two implementations, one lesson</h3>
       <p>The C + Python version stays in the repository (<code>gase/</code>, <code>runtime/</code>, <code>tests/</code>) as the <strong>first draft</strong>: shorter, closer to the classic recompilers, and still the clearest way into chapters 03 to 09. The Rust edition is where the project goes. Reading both side by side is the point: the pipeline — loader, decoder, analysis, codegen, runtime, feedback loop, differential tests — did not change at all. Only the host language and the shoulders it stands on did.</p>
       <p class="caption">Generic lesson: the architecture of a recompiler outlives its implementation language. Keep the stages small and you can rewrite any of them.</p>

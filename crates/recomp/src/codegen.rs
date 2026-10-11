@@ -284,7 +284,11 @@ impl<'a> Emitter<'a> {
                 raw.join(" "),
                 ins.text()
             );
-            let _ = writeln!(o, "                cx.cycles += {};", ins.cycles);
+            // Instructions with several outcomes count their cycles per
+            // outcome, in `instruction`.
+            if !matches!(ins.mnemonic, "bcc" | "scc" | "dbcc" | "chk") {
+                let _ = writeln!(o, "                cx.cycles += {};", ins.cycles);
+            }
             for line in self.instruction(ins) {
                 let _ = writeln!(o, "                {line}");
             }
@@ -547,9 +551,11 @@ impl<'a> Emitter<'a> {
             "scc" => {
                 let d = dst("ea_d");
                 d.setup(&mut o);
+                let [t, _] = ins.cycles_alt;
                 o.push(format!(
-                    "let v = if {} {{ 0xFF }} else {{ 0 }};",
-                    cond(ins.cond)
+                    "let v = if {} {{ cx.cycles += {t}; 0xFF }} else {{ cx.cycles += {}; 0 }};",
+                    cond(ins.cond),
+                    ins.cycles
                 ));
                 o.push(d.write("v"));
             }
@@ -561,7 +567,7 @@ impl<'a> Emitter<'a> {
                 let op = ins.mnemonic;
                 if op.starts_with("div") {
                     // Division by zero clears N, Z, V and C, then traps.
-                    o.push(format!("if s == 0 {{ cx.n = false; cx.z = false; cx.v = false; cx.c = false; if !cx.exception(5, {next}) {{ return; }} }}"));
+                    o.push(format!("if s == 0 {{ cx.cycles += 4; cx.n = false; cx.z = false; cx.v = false; cx.c = false; if !cx.exception(5, {next}) {{ return; }} }}"));
                     o.push(format!(
                         "else {{ let d = cx.d[{r}]; cx.d[{r}] = cx.{op}(d, s); }}"
                     ));
@@ -592,16 +598,30 @@ impl<'a> Emitter<'a> {
                 o.push(format!("let bound = {} as u16 as i16;", s.read()));
                 o.push(format!("let v = cx.d[{r}] as u16 as i16;"));
                 o.push("cx.n = v < 0; cx.z = v == 0; cx.v = false; cx.c = false;".into());
+                // In bounds: the measured time. Out of bounds: the operand
+                // fetch, a 4- or 6-cycle test (the microcode's slow path is
+                // a negative value whose difference fits), then the trap.
+                let fetch = ins.cycles - 10;
                 o.push(format!(
-                    "if !(0..=bound).contains(&v) && !cx.exception(6, {next}) {{ return; }}"
+                    "if (0..=bound).contains(&v) {{ cx.cycles += {}; }} else {{",
+                    ins.cycles
                 ));
+                o.push("    let (diff, over) = bound.overflowing_sub(v);".into());
+                o.push(format!(
+                    "    cx.cycles += {fetch} + if v < 0 && diff >= 0 && !over {{ 6 }} else {{ 4 }};"
+                ));
+                o.push(format!("    if !cx.exception(6, {next}) {{ return; }}"));
+                o.push("}".into());
             }
 
             // -- shifts and rotates -----------------------------------------
             "asl" | "asr" | "lsl" | "lsr" | "rol" | "ror" | "roxl" | "roxr" => {
                 let s = ins.src.unwrap();
                 let count = if s.mode == Mode::Dn {
-                    format!("cx.d[{}] & 63", s.reg)
+                    // 2 cycles per bit, known at run time only.
+                    o.push(format!("let n = cx.d[{}] & 63;", s.reg));
+                    o.push("cx.cycles += 2 * u64::from(n);".into());
+                    "n".to_string()
                 } else {
                     s.imm.to_string()
                 };
@@ -627,6 +647,10 @@ impl<'a> Emitter<'a> {
                 };
                 let d = dst("ea_d");
                 d.setup(&mut o);
+                if s.mode == Mode::Dn && modulo == 31 && ins.mnemonic != "btst" {
+                    // Changing a bit in the upper word takes 2 cycles more.
+                    o.push(format!("if ({bit}) >= 16 {{ cx.cycles += 2; }}"));
+                }
                 o.push(format!("let b = 1u32 << ({bit});"));
                 o.push(format!("let v = {};", d.read()));
                 o.push("cx.z = v & b == 0;".into());
@@ -710,21 +734,27 @@ impl<'a> Emitter<'a> {
 
             // -- control flow ---------------------------------------------------------
             "bra" => o.push(self.goto(ins.target.unwrap(), ins.addr)),
-            "bcc" => o.push(format!(
-                "if {} {{ {} }}",
-                cond(ins.cond),
-                self.goto(ins.target.unwrap(), ins.addr)
-            )),
+            "bcc" => {
+                o.push(format!(
+                    "if {} {{ cx.cycles += {}; {} }}",
+                    cond(ins.cond),
+                    ins.cycles_alt[0],
+                    self.goto(ins.target.unwrap(), ins.addr)
+                ));
+                o.push(format!("cx.cycles += {};", ins.cycles));
+            }
             "dbcc" => {
                 let r = ins.dst.unwrap().reg;
                 o.push(format!("if !{} {{", cond(ins.cond)));
                 o.push(format!("    let c = cx.d[{r}].wrapping_sub(1) & 0xFFFF;"));
                 o.push(format!("    cx.set_d16({r}, c);"));
+                let [looping, exhausted] = ins.cycles_alt;
                 o.push(format!(
-                    "    if c != 0xFFFF {{ {} }}",
+                    "    if c != 0xFFFF {{ cx.cycles += {looping}; {} }}",
                     self.goto(ins.target.unwrap(), ins.addr)
                 ));
-                o.push("}".into());
+                o.push(format!("    cx.cycles += {exhausted};"));
+                o.push(format!("}} else {{ cx.cycles += {}; }}", ins.cycles));
             }
             "bsr" => o.push(self.call(ins.target.unwrap(), ins.next_addr())),
             "jsr" => match ins.target {

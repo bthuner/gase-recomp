@@ -1,7 +1,8 @@
 //! Differential testing: every random snippet built by `build.rs` runs on
 //! the recompiled code *and* on gase's 68000 interpreter (validated
 //! against ~2.6 million hardware test vectors), from the same random
-//! state. Registers, flags, exception frames and RAM must match exactly.
+//! state. Registers, flags, exception frames, RAM and the number of CPU
+//! cycles taken must match exactly.
 //!
 //! ```sh
 //! cargo test -p gase-recomp-difftest
@@ -33,6 +34,7 @@ pub struct State {
     pub usp: u32,
     pub sr: u16,
     pub ram: Vec<u8>,
+    pub cycles: u64,
 }
 
 /// A random starting point: interesting data values, pointers into RAM.
@@ -74,8 +76,16 @@ fn fresh(mem: &mut FlatMachine, low: &[u8], ram: &[u8]) {
     mem.mem[RAM as usize..].copy_from_slice(ram);
 }
 
-fn snapshot(pc: u32, d: [u32; 8], a: [u32; 8], usp: u32, sr: u16, m: &FlatMachine) -> State {
+fn snapshot(
+    pc: u32,
+    (d, a): ([u32; 8], [u32; 8]),
+    usp: u32,
+    sr: u16,
+    m: &FlatMachine,
+    cycles: u64,
+) -> State {
     State {
+        cycles,
         pc,
         d,
         a,
@@ -115,6 +125,7 @@ pub fn run() -> (usize, Vec<String>) {
         reference.write_word(cpu.a[7] + 2, SENTINEL as u16);
         cpu.set_pc(&mut reference, entry);
         let mut valid = true;
+        let mut cycles = 0;
         for _ in 0..64 {
             let pc = cpu.pc();
             if pc == SENTINEL {
@@ -125,12 +136,19 @@ pub fn run() -> (usize, Vec<String>) {
                 valid = false;
                 break;
             }
-            cpu.step(&mut reference);
+            cycles += u64::from(cpu.step(&mut reference));
         }
         if !valid || cpu.pc() != SENTINEL || cpu.is_halted() {
             continue;
         }
-        let expected = snapshot(cpu.pc(), cpu.d, cpu.a, cpu.usp(), cpu.sr(), &reference);
+        let expected = snapshot(
+            cpu.pc(),
+            (cpu.d, cpu.a),
+            cpu.usp(),
+            cpu.sr(),
+            &reference,
+            cycles,
+        );
 
         // the recompiled code
         fresh(&mut flat, low, &ram);
@@ -148,9 +166,9 @@ pub fn run() -> (usize, Vec<String>) {
             cx.missing.is_empty(),
             "case {entry:#X} fell back to the interpreter"
         );
-        let (pc, d_out, a_out, usp, sr_out) = (cx.pc, cx.d, cx.a, cx.usp(), cx.sr());
+        let (pc, regs, usp, sr_out, cycles) = (cx.pc, (cx.d, cx.a), cx.usp(), cx.sr(), cx.cycles);
         drop(cx);
-        let got = snapshot(pc, d_out, a_out, usp, sr_out, &flat);
+        let got = snapshot(pc, regs, usp, sr_out, &flat, cycles);
 
         compared += 1;
         if got != expected {
@@ -179,6 +197,12 @@ pub fn run() -> (usize, Vec<String>) {
                 diff.push(format!(
                     "pc: gase={:06X} recomp={:06X}",
                     expected.pc, got.pc
+                ));
+            }
+            if got.cycles != expected.cycles {
+                diff.push(format!(
+                    "cycles: gase={} recomp={}",
+                    expected.cycles, got.cycles
                 ));
             }
             if got.usp != expected.usp {

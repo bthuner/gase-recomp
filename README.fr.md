@@ -118,6 +118,11 @@ python tests/difftest/difftest.py --cases 2000 --seed 7
 Premier vrai jeu : **hashbug**, un homebrew de 2,2 Mo, recompilé en une
 passe et joué dans gase avec des graphismes identiques à l'émulateur (build
 release d'environ 5 minutes).
+Deuxième : **Aladdin**, recompilé en une passe (build release en moins de
+4 minutes) et entièrement jouable. Quelques défauts de sprites et de décor,
+absents de l'émulateur, venaient de durées d'instructions estimées ; elles
+sont maintenant mesurées sur le 68000 de gase et vérifiées au cycle près
+par le test différentiel (making-of, chapitre 10).
 
 Fonctionne aujourd'hui :
 - le jeu d'instructions 68000 complet, avec le décodeur comparé à Musashi sur les 65 536 opcodes ;

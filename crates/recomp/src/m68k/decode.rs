@@ -88,8 +88,12 @@ pub struct Instruction {
     /// MOVEM register mask, TRAP number, STOP immediate.
     pub data: Option<u32>,
     pub flow: Flow,
-    /// Rough 68000 cycle count.
+    /// 68000 cycles (see [`super::timing`]): the fall-through path for
+    /// Bcc, Scc (false) and DBcc (condition true).
     pub cycles: u32,
+    /// The other outcomes: Bcc taken / Scc true / DBcc looping, and DBcc
+    /// with its counter exhausted.
+    pub cycles_alt: [u32; 2],
 }
 
 impl Instruction {
@@ -107,6 +111,7 @@ impl Instruction {
             data: None,
             flow: Flow::Next,
             cycles: 4,
+            cycles_alt: [4, 4],
         }
     }
 
@@ -347,7 +352,6 @@ pub fn decode(read16: impl FnMut(u32) -> Option<u16>, addr: u32) -> Result<Instr
         _ => (ins.mnemonic, ins.flow) = ("linef", Flow::Trap),
     }
     ins.length = r.pos.wrapping_sub(addr);
-    ins.cycles = estimate_cycles(&ins);
     Ok(ins)
 }
 
@@ -884,43 +888,4 @@ fn line_e<F: FnMut(u32) -> Option<u16>>(
     });
     ins.dst = Some(Operand::dreg((op & 7) as u8));
     Ok(())
-}
-
-// --- cycle estimate --------------------------------------------------------------
-//
-// Real 68000 timings depend on the addressing mode and on wait states. We
-// only need "about right" so that the number of instructions executed per
-// scanline, and so per frame, is plausible.
-
-fn estimate_cycles(ins: &Instruction) -> u32 {
-    let fixed = match ins.mnemonic {
-        "mulu" | "muls" => 54,
-        "divu" => 108,
-        "divs" => 122,
-        "rts" => 16,
-        "rte" | "rtr" => 20,
-        "jsr" | "bsr" => 18,
-        "trap" => 34,
-        "bra" | "bcc" | "dbcc" | "jmp" => 10,
-        "link" => 16,
-        "unlk" => 12,
-        "stop" => 4,
-        _ => 0,
-    };
-    if fixed != 0 {
-        return fixed;
-    }
-    let mut cycles = 2 * ins.length;
-    for opnd in [ins.src, ins.dst].into_iter().flatten() {
-        if opnd.is_memory() {
-            cycles += if ins.size == 4 { 8 } else { 4 };
-        }
-    }
-    if ins.mnemonic == "movem" {
-        cycles += ins.data.unwrap_or(0).count_ones() * if ins.size == 4 { 8 } else { 4 };
-    }
-    if matches!(&ins.mnemonic[..2], "as" | "ls" | "ro") {
-        cycles += 6;
-    }
-    (cycles + 2).max(4)
 }
