@@ -237,13 +237,31 @@ impl<'a> Cx<'a> {
     #[inline(always)]
     pub fn r8(&mut self, a: u32) -> u32 {
         self.m.set_clock(self.cycles);
-        u32::from(self.m.read_byte(a & 0xFF_FFFF))
+        let v = u32::from(self.m.read_byte(a & 0xFF_FFFF));
+        self.waited(a);
+        v
     }
     #[inline(always)]
     pub fn r16(&mut self, a: u32) -> u32 {
         self.m.set_clock(self.cycles);
-        u32::from(self.m.read_word(a & 0xFF_FFFE))
+        let v = u32::from(self.m.read_word(a & 0xFF_FFFE));
+        self.waited(a);
+        v
     }
+    /// After an access to the Z80 area, the I/O ports or the VDP: the
+    /// hardware may have made the 68000 wait (VDP FIFO full, Z80 bus
+    /// arbitration, a 68000-to-VDP DMA, which freezes the CPU for the whole
+    /// transfer). Count that time now, as gase's interpreter does: if we
+    /// only caught up at the next event, the instructions that follow
+    /// would run "for free" during the wait, and a game doing big DMAs
+    /// would get thousands of extra cycles per frame.
+    #[inline(always)]
+    fn waited(&mut self, a: u32) {
+        if (0xA0_0000..0xE0_0000).contains(&(a & 0xFF_FFFF)) {
+            self.cycles = self.m.stalled_clock(self.cycles);
+        }
+    }
+
     /// A long access is two word accesses, high word first.
     #[inline(always)]
     pub fn r32(&mut self, a: u32) -> u32 {
@@ -254,11 +272,13 @@ impl<'a> Cx<'a> {
     pub fn w8(&mut self, a: u32, v: u32) {
         self.m.set_clock(self.cycles);
         self.m.write_byte(a & 0xFF_FFFF, v as u8);
+        self.waited(a);
     }
     #[inline(always)]
     pub fn w16(&mut self, a: u32, v: u32) {
         self.m.set_clock(self.cycles);
         self.m.write_word(a & 0xFF_FFFE, v as u16);
+        self.waited(a);
     }
     #[inline(always)]
     pub fn w32(&mut self, a: u32, v: u32) {
@@ -270,6 +290,7 @@ impl<'a> Cx<'a> {
     pub fn w8_tas(&mut self, a: u32, v: u32) {
         self.m.set_clock(self.cycles);
         self.m.tas_write_byte(a & 0xFF_FFFF, v as u8);
+        self.waited(a);
     }
     pub fn reset_devices(&mut self) {
         self.m.reset_devices();
@@ -474,8 +495,10 @@ impl<'a> Cx<'a> {
             self.cpu.set_interrupt_level(self.m.irq_level());
             self.m.set_clock(self.cycles);
             self.cycles += u64::from(self.cpu.step(&mut DynBus(&mut *self.m)));
+            // Waits the hardware imposed during that instruction, at once
+            // (see `waited`).
+            self.cycles = self.m.stalled_clock(self.cycles);
             if self.cycles >= self.next_event {
-                self.cycles = self.m.stalled_clock(self.cycles);
                 self.next_event = self.m.catch_up(self.cycles);
                 if self.m.frame_done() {
                     self.unwinding = true;
@@ -520,5 +543,68 @@ impl<'a> Cx<'a> {
         };
         self.stopped = self.cpu.is_stopped();
         self.pc = self.cpu.pc() & 0xFF_FFFF;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::machine::FlatMachine;
+
+    /// A console whose VDP makes every access wait 100 cycles.
+    struct Slow {
+        ram: FlatMachine,
+        clock: u64,
+    }
+    impl Bus for Slow {
+        fn read_byte(&mut self, a: u32) -> u8 {
+            self.ram.read_byte(a)
+        }
+        fn read_word(&mut self, a: u32) -> u16 {
+            self.ram.read_word(a)
+        }
+        fn write_byte(&mut self, a: u32, v: u8) {
+            self.ram.write_byte(a, v);
+        }
+        fn write_word(&mut self, a: u32, v: u16) {
+            if (0xC0_0000..0xE0_0000).contains(&a) {
+                self.clock += 100;
+            }
+            self.ram.write_word(a, v);
+        }
+    }
+    impl Machine for Slow {
+        fn set_clock(&mut self, cycles: u64) {
+            self.clock = self.clock.max(cycles);
+        }
+        fn catch_up(&mut self, _: u64) -> u64 {
+            u64::MAX
+        }
+        fn stalled_clock(&self, cycles: u64) -> u64 {
+            cycles.max(self.clock)
+        }
+    }
+
+    fn nothing(_: &mut Cx<'_>) -> bool {
+        false
+    }
+
+    #[test]
+    fn hardware_waits_are_counted_at_once() {
+        let mut cpu = M68k::new();
+        let mut m = Slow {
+            ram: FlatMachine::default(),
+            clock: 0,
+        };
+        let code = Code {
+            dispatch: nothing,
+            is_block: |_| false,
+        };
+        let mut cx = Cx::new(&mut cpu, &mut m, code);
+        cx.cycles = 10;
+        cx.w16(0xFF_0000, 1); // work RAM: no wait
+        assert_eq!(cx.cycles, 10);
+        cx.w16(0xC0_0004, 0x8F02); // VDP: the console made us wait
+        assert_eq!(cx.cycles, 110);
     }
 }
