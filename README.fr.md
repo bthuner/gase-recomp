@@ -115,6 +115,10 @@ python tests/difftest/difftest.py --cases 2000 --seed 7
 
 ## État et feuille de route
 
+Premier vrai jeu : **hashbug**, un homebrew de 2,2 Mo, recompilé en une
+passe et joué dans gase avec des graphismes identiques à l'émulateur (build
+release d'environ 5 minutes).
+
 Fonctionne aujourd'hui :
 - le jeu d'instructions 68000 complet, avec le décodeur comparé à Musashi sur les 65 536 opcodes ;
 - le VDP (plans, fenêtre, sprites, scrolling, DMA), le PSG et les manettes 3 boutons ;
